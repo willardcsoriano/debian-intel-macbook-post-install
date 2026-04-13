@@ -66,8 +66,7 @@ This script is for users who have:
 4. Internet connected via wpa_supplicant and dhcpcd
 5. A terminal and nothing else
 
-If you have not yet gotten WiFi working, start here first:
-https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
+If you have not yet gotten WiFi working, start [here](https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline) first.
 
 ---
 
