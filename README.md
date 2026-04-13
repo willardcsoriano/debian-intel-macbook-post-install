@@ -16,6 +16,14 @@ Apple Silicon Macs (M1, M2, M3, M4 — released 2020 onwards) use ARM
 architecture and are not supported. Apple Silicon Linux support is handled
 by the separate Asahi Linux project.
 
+**This script targets Debian GNU/Linux 13 (Trixie) only.**
+
+Ubuntu and Linux Mint are not tested and not officially supported. Most
+apt-based steps will likely work, but keyd availability varies by Ubuntu
+version and may require a PPA. The facetimehd driver builds from source
+via DKMS and should work on any kernel as long as headers are installed.
+If you test this on Ubuntu or Mint, open an issue with your results.
+
 Tested on MacBook Air 7,2 (2015, 13-inch). Should work on most Intel
 MacBooks from 2012–2019 running Debian 13 Trixie.
 
