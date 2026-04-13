@@ -1,83 +1,169 @@
-# debian-macbook-post-install
+# Debian Linux Post-Installation Setup for Intel MacBooks
 
 A single-command post-installation setup script for Intel MacBooks running
-Debian GNU/Linux 13 (Trixie). This script picks up where a fresh minimal
-Debian install leaves off — no GUI, no quality-of-life tooling, just a
-working terminal with internet access.
+Debian GNU/Linux 13 (Trixie). This picks up exactly where the Broadcom
+offline repo leaves off — WiFi is working, you have a terminal, and now
+it is time to turn this machine into something you can actually use every
+day.
 
 ---
 
-## Who this is for
+## ⚠️ Compatibility Notice
+
+**This script is for Intel MacBooks only.**
+
+Apple Silicon Macs (M1, M2, M3, M4 — released 2020 onwards) use ARM
+architecture and are not supported. Apple Silicon Linux support is handled
+by the separate Asahi Linux project.
+
+Tested on MacBook Air 7,2 (2015, 13-inch). Should work on most Intel
+MacBooks from 2012–2019 running Debian 13 Trixie.
+
+---
+
+## The Story So Far
+
+If you just came from the Broadcom offline repo, you have accomplished
+something genuinely difficult — you installed Linux on a MacBook with no
+internet access and got WiFi working entirely from a USB stick. That is
+not a beginner task and you should feel good about it.
+
+But right now you are staring at a terminal. No desktop, no browser, no
+way to adjust brightness, no GUI tools, no keyboard shortcuts that feel
+familiar coming from macOS. The Cmd key does nothing useful. The function
+keys do nothing. The FaceTime camera does not work. The mic may not work.
+
+This script fixes all of that in one command.
+
+---
+
+## Why Debian on an Intel MacBook
+
+macOS Monterey — the last macOS version supporting most Intel MacBooks —
+reached end of life on September 16, 2024 when Apple released Sequoia.
+Security updates have stopped. On top of that, Monterey consumes roughly
+4GB of RAM at idle on 8GB hardware, leaving almost nothing available for
+actual work.
+
+Debian Trixie at idle uses under 500MB. The machine that felt sluggish
+and unusable under macOS becomes fast and responsive again. That is the
+whole point of this migration.
+
+---
+
+## Who This Is For
 
 This script is for users who have:
 
-1. Installed Debian GNU/Linux 13 (Trixie) on an Intel MacBook (tested on
-   MacBook Air 7,2 — 2015 13-inch)
-2. Successfully set up Broadcom WiFi drivers (see prerequisite repo below)
-3. Connected to the internet manually via wpa_supplicant and dhcpcd
-4. Booted into a terminal with no graphical interface
+1. An Intel MacBook with no usable macOS (end of life, or removed)
+2. Debian GNU/Linux 13 (Trixie) installed — minimal, no desktop
+3. Broadcom WiFi working via the offline repo below
+4. Internet connected via wpa_supplicant and dhcpcd
+5. A terminal and nothing else
 
-If you have not yet gotten WiFi working, see this repo first:
-https://github.com/willardcsoriano/debian-trixie-macbook-broadcom-offline
+If you have not yet gotten WiFi working, start here first:
+https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
 
 ---
 
-## What this script installs
+## What This Script Installs and Configures
 
-### Graphical Interface
+### Desktop Environment
 - xorg — display server
-- xfce4 + xfce4-goodies — lightweight desktop environment
+- xfce4 + xfce4-goodies — lightweight desktop, chosen specifically because
+  it is fast and low on RAM — consistent with the reason you switched to
+  Linux in the first place
 
 ### Terminal
-- gnome-terminal — a modern terminal with proper copy-paste, mouse support,
-  and a menubar. Replaces the default xterm which lacks these features.
+- gnome-terminal — modern terminal with proper copy-paste, right-click menu,
+  and mouse support. The default xterm that ships with Debian minimal is
+  essentially unusable for everyday work.
+- Bracketed paste mode disabled system-wide so pasting commands into the
+  terminal works without escape code artifacts
 
-### Browser
-- firefox — web browser
+### Browser and Core Apps
+- firefox-esr — Mozilla Firefox
+- gedit — simple text editor, similar feel to TextEdit on macOS
+- cups — printing system, works with most USB and network printers
 
-### Keyboard (Mac-specific fixes)
-- keyd — kernel-level key remapping daemon
-- Full keyd configuration covering:
-  - Command key remapped to Ctrl (preserves Mac muscle memory)
-  - Cmd+Left/Right jumps to start/end of line
-  - Cmd+Up/Down jumps to start/end of document
-  - Cmd+Shift+Left/Right/Up/Down selects to start/end of line/document
-  - Cmd+Delete deletes entire line to the left of cursor
-  - Cmd+Space opens the XFCE application finder
-  - F1/F2 brightness down/up
-  - F7/F8/F9 previous track/play-pause/next track
-  - F10 mute toggle
-  - F11/F12 volume down/up
-  - Keyboard backlight up/down
-
-### Brightness and Media
-- brightnessctl — controls screen brightness and keyboard backlight
-- playerctl — controls media playback (Spotify, VLC, browsers, etc.)
-- pulseaudio-utils — controls system volume
+### Media and Utilities
+- flameshot — screenshot tool with annotation support. Shortcut: Ctrl+Alt+S
+- xfce4-screenshooter — basic screenshot tool bound to the Print key
+- file-roller — archive manager for zip, tar, and other formats
+- vlc — media player for video and audio
+- blueman — Bluetooth manager with GUI tray applet
+- fastfetch — system info tool. Run with: fastfetch
+- sane-utils + simple-scan — scanner support for USB and all-in-one printers
+- xfce4-clipman-plugin — clipboard history manager
+- libreoffice — full office suite (Writer, Calc, Impress). Large download ~300MB.
+- mtpaint — simple image editor similar to Microsoft Paint
+- rhythmbox — music player for local libraries
 
 ### WiFi Management
 - network-manager + network-manager-gnome — replaces the manual
-  wpa_supplicant + dhcpcd workflow with a GUI tray applet that
-  auto-connects to known networks on boot
+  wpa_supplicant + dhcpcd workflow permanently. After this you will never
+  type ip link or wpa_passphrase again. WiFi connects automatically on boot
+  and a tray icon lets you switch networks from the desktop.
 
-### Battery
-- xfce4-battery-plugin — shows battery level in the taskbar panel
+### MacBook Keyboard Fixes
+This is one of the most important parts of the script. Out of the box on
+Linux, the Mac keyboard feels completely wrong — the Cmd key does nothing,
+F keys behave unexpectedly, and text navigation shortcuts from macOS do not
+work. This script fixes all of it.
 
-### Power Management
-- xfce4-power-manager — handles lid close, sleep, suspend, and
-  screen dimming on idle
+- keyd — kernel-level key remapping, works before the desktop even loads
+- brightness-udev — backlight write permissions without sudo
+- rofi — window switcher used as an F3 Mission Control equivalent
 
-### Task Managers
-- xfce4-taskmanager — GUI task manager similar to Activity Monitor on macOS,
-  shows CPU and RAM usage per process
-- htop — terminal-based process viewer, more detailed and beloved by
-  Linux users
+Full key mapping applied:
+
+| Key | Action |
+|-----|--------|
+| Cmd | Ctrl (preserves Mac muscle memory) |
+| Cmd+Space / F4 | App finder (like Spotlight / Launchpad) |
+| F1 / F2 | Brightness down / up |
+| F3 | Window switcher (like Mission Control) |
+| F5 / F6 | Keyboard backlight down / up |
+| F7 / F8 / F9 | Previous / Play-Pause / Next track |
+| F10 / F11 / F12 | Mute / Volume down / Volume up |
+| Fn+F1–F12 | Standard F1–F12 keys |
+| Cmd+Left / Right | Jump to start / end of line |
+| Cmd+Up / Down | Jump to start / end of document |
+| Cmd+Shift+Left / Right | Select to start / end of line |
+| Cmd+Shift+Up / Down | Select to start / end of document |
+| Cmd+Backspace | Delete entire line left of cursor |
+
+### Webcam and Microphone
+The FaceTime HD camera in Intel MacBooks connects via PCIe, not USB. It
+requires a reverse-engineered driver that is not included in the Linux
+kernel. This script builds and installs it automatically via DKMS, which
+means it survives kernel updates without any manual intervention.
+
+- facetimehd — FaceTime HD webcam driver (compiled from source, DKMS managed)
+- Microphone configured for MacBook Air hardware via ALSA
+
+### Battery and Power
+- xfce4-battery-plugin — battery level and charging status in taskbar
+- xfce4-power-manager — lid close triggers suspend and screen lock.
+  Password required on wake.
+
+### System Monitoring
+- xfce4-taskmanager — GUI task manager, similar to Activity Monitor
+- htop — terminal process viewer
 
 ### Fonts
-- fonts-liberation — metric-compatible replacements for Arial, Times New
-  Roman, and Courier New
-- fonts-noto — extensive Unicode font family covering most scripts
-- fonts-dejavu — clean, readable fonts for UI and terminal use
+- fonts-liberation — Arial, Times New Roman, Courier New replacements
+- fonts-noto — broad Unicode coverage
+
+### Desktop Shortcuts
+Shortcuts for every installed app are placed on your Desktop so you can
+find everything without memorizing commands. First time you click a
+shortcut XFCE will show "Untrusted application launcher" — click Launch
+to confirm. It will not ask again.
+
+### Keyboard Shortcuts Cheat Sheet
+A plain text file called KEYBOARD SHORTCUTS.txt is placed on your Desktop
+with a complete reference of every shortcut configured by this script.
 
 ---
 
@@ -85,88 +171,105 @@ https://github.com/willardcsoriano/debian-trixie-macbook-broadcom-offline
 
 ### 1. Working internet connection
 
-You should already have this if you followed the Broadcom offline repo.
 Confirm with:
 
     ping -c 3 google.com
 
 ### 2. Set up sudo for your user
 
-Debian does not configure sudo for regular users by default. You need to
-do this once before running the script.
+Debian does not configure sudo for regular users by default. This must be
+done once before running the script. Do it while you are still in the
+terminal from the Broadcom install.
 
 Switch to root:
 
     su -
 
-Add your user to the sudo group (replace "yourusername" with your actual
-username):
+Add your user to the sudo group (replace yourusername with your actual
+username, for example willard):
 
     usermod -aG sudo yourusername
 
-Exit root:
+Exit root and log out:
 
     exit
+    logout
 
-Log out and log back in for the change to take effect. Confirm sudo works:
+Log back in as your regular user. Confirm sudo works:
 
     sudo echo "sudo is working"
+
+If you see "sudo is working" you are ready.
 
 ---
 
 ## Installation
 
-Once prerequisites are complete, run this single command in your terminal:
+Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-macbook-post-install/main/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/main/setup.sh)
 
-The script will print progress as it runs. Do not close the terminal.
-When finished, it will prompt you to reboot.
+The script prints progress for every step. Estimated time: 20–40 minutes
+depending on internet speed. LibreOffice alone is ~300MB.
 
----
-
-## After reboot
-
-Once you boot into XFCE, two things need to be added to your taskbar
-panel manually:
-
-### Add WiFi applet to panel
-Right-click the taskbar > Panel > Add New Items > search for
-"Network Manager" > Add
-
-### Add battery indicator to panel
-Right-click the taskbar > Panel > Add New Items > search for
-"Battery Monitor" > Add
-
-These are one-time steps. After this everything runs automatically.
+When finished it will tell you whether a reboot is required and prompt you.
 
 ---
 
-## Tested on
+## After Reboot
 
-- MacBook Air 7,2 (2015, 13-inch)
-- Debian GNU/Linux 13 (Trixie) 13.4
-- Fresh minimal install with no desktop environment
+Two things need to be added to your taskbar manually after the first boot
+into XFCE:
 
-This script should work on most Intel MacBooks from 2012-2017 running
-Debian Trixie. If you encounter issues on a different model, please open
-an issue and include your MacBook model (run: sudo dmidecode -s
-system-product-name) and the error output.
+### Add WiFi icon to taskbar
+Right-click taskbar → Panel → Add New Items → Network Manager → Add
+
+### Add battery indicator to taskbar
+Right-click taskbar → Panel → Add New Items → Battery Monitor → Add
+
+These are one-time steps. After this everything is automatic.
+
+---
+
+## Verified Test Environment
+
+| | |
+|---|---|
+| **Machine** | Apple MacBookAir7,2 (Mid-2015, 13-inch) |
+| **OS** | Debian GNU/Linux 13 (Trixie) 13.4 |
+| **Kernel** | 6.12.73+deb13-amd64 |
+| **CPU** | Intel Core i5-5350U @ 1.80GHz (2 cores, 4 threads, up to 2.9GHz) |
+| **RAM** | 8GB |
+| **Storage** | 221GB SSD |
+| **Architecture** | amd64 (64-bit) |
+
+---
+
+## Known Limitations
+
+- F3 (Mission Control) uses rofi as an approximation. It shows open windows
+  with icons and supports arrow key navigation. A closer equivalent
+  (skippy-xd) is not currently in Debian Trixie repos.
+- The FaceTime HD webcam driver is a community reverse-engineered driver.
+  It works well but is not officially supported by Apple or the Linux kernel.
+- Ctrl+Alt+S screenshot shortcut requires XFCE session to be running. It
+  will not work from a pure terminal before first boot into the desktop.
 
 ---
 
 ## Related
 
-- Broadcom offline driver installer (run this first):
-  https://github.com/willardcsoriano/debian-trixie-macbook-broadcom-offline
+Step 1 — get WiFi working before running this script:
+https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
 
 ---
 
 ## Contributing
 
-Pull requests welcome. If you have a different Intel MacBook model and
-can confirm this works (or doesn't), please open an issue so the tested
-hardware list can be updated.
+Pull requests welcome. If you test this on a different Intel MacBook model
+please open an issue with your model (run: sudo dmidecode -s
+system-product-name) and whether it worked, so the tested hardware list
+can be updated.
 
 ---
 
