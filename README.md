@@ -31,10 +31,7 @@ MacBooks from 2012–2019 running Debian 13 Trixie.
 
 ## The Story So Far
 
-If you just came from the Broadcom offline repo, you have accomplished
-something genuinely difficult — you installed Linux on a MacBook with no
-internet access and got WiFi working entirely from a USB stick. That is
-not a beginner task and you should feel good about it.
+If you just came from the [Broadcom offline repo](https://github.com/willardcsoriano/debian-intel-macbook-broadcom-offline), you have accomplished something genuinely difficult — you installed Linux on a MacBook with no internet access and got WiFi working entirely from a USB stick. That is not a beginner task and you should feel good about it.
 
 But right now you are staring at a terminal. No desktop, no browser, no
 way to adjust brightness, no GUI tools, no keyboard shortcuts that feel
