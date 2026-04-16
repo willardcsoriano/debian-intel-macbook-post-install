@@ -50,9 +50,7 @@ Security updates have stopped. On top of that, Monterey consumes roughly
 4GB of RAM at idle on 8GB hardware, leaving almost nothing available for
 actual work.
 
-Debian Trixie at idle uses under 500MB. The machine that felt sluggish
-and unusable under macOS becomes fast and responsive again. That is the
-whole point of this migration.
+Debian Trixie at idle uses under 500MB. After running this post-install script, idle RAM rises to approximately 1GB — XFCE, NetworkManager, Bluetooth, and the FaceTime driver all add overhead that a terminal-only install does not have. That is still well under a quarter of what Monterey uses on the same hardware, and you now have a fully functional desktop.
 
 ---
 
@@ -211,7 +209,7 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/master/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.0/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
