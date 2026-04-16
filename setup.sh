@@ -4,6 +4,8 @@
 # Tested on MacBook Air 7,2 (2015) — should work on most Intel MacBooks
 # https://github.com/willardcsoriano/debian-macbook-post-install
 
+set -uo pipefail
+
 # ─────────────────────────────────────────────
 # COLORS
 # ─────────────────────────────────────────────
@@ -16,12 +18,19 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # ─────────────────────────────────────────────
+# LOGGING
+# ─────────────────────────────────────────────
+LOG_FILE="$HOME/setup-$(date +%Y%m%d-%H%M%S).log"
+touch "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/setup-$(date +%Y%m%d-%H%M%S).log"
+
+# ─────────────────────────────────────────────
 # TRACKING
 # ─────────────────────────────────────────────
 INSTALLED=()
 SKIPPED=()
 FAILED=()
 REBOOT_REQUIRED=false
+HAS_DBUS=true
 
 # ─────────────────────────────────────────────
 # HELPERS
@@ -32,44 +41,36 @@ print_header() {
     echo -e "${BLUE}${BOLD}══════════════════════════════════════════${NC}\n"
 }
 
-print_ok() {
-    echo -e "${GREEN}  ✔ $1${NC}"
-}
+print_ok()      { echo -e "${GREEN}  ✔ $1${NC}"; }
+print_skip()    { echo -e "${YELLOW}  ⊘ $1 — already installed, skipping${NC}"; }
+print_fail()    { echo -e "${RED}  ✘ $1 — failed to install${NC}"; }
+print_info()    { echo -e "${CYAN}  → $1${NC}"; }
+print_warning() { echo -e "${YELLOW}  ⚠ $1${NC}"; }
 
-print_skip() {
-    echo -e "${YELLOW}  ⊘ $1 — already installed, skipping${NC}"
-}
+log() { echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE"; }
 
-print_fail() {
-    echo -e "${RED}  ✘ $1 — failed to install${NC}"
-}
-
-print_info() {
-    echo -e "${CYAN}  → $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}  ⚠ $1${NC}"
-}
-
+# Returns: 0 = installed now, 1 = already installed, 2 = failed
 install_pkg() {
     local pkg=$1
     local label=${2:-$1}
     if dpkg -s "$pkg" &>/dev/null; then
         print_skip "$label"
         SKIPPED+=("$label")
-    else
-        print_info "Installing $label..."
-        if sudo apt install -y "$pkg" &>/dev/null; then
-            print_ok "$label installed"
-            INSTALLED+=("$label")
-        else
-            print_fail "$label"
-            FAILED+=("$label")
-        fi
+        return 1
     fi
+    print_info "Installing $label..."
+    log "apt install $pkg"
+    if sudo apt install -y "$pkg" >>"$LOG_FILE" 2>&1; then
+        print_ok "$label installed"
+        INSTALLED+=("$label")
+        return 0
+    fi
+    print_fail "$label"
+    FAILED+=("$label")
+    return 2
 }
 
+# Returns: 0 = installed now, 1 = already installed, 2 = failed
 install_pkgs() {
     local label=$1
     shift
@@ -86,16 +87,27 @@ install_pkgs() {
     if $all_installed; then
         print_skip "$label"
         SKIPPED+=("$label")
-    else
-        print_info "Installing $label..."
-        if sudo apt install -y "${pkgs[@]}" &>/dev/null; then
-            print_ok "$label installed"
-            INSTALLED+=("$label")
-        else
-            print_fail "$label"
-            FAILED+=("$label")
-        fi
+        return 1
     fi
+    print_info "Installing $label..."
+    log "apt install ${pkgs[*]}"
+    if sudo apt install -y "${pkgs[@]}" >>"$LOG_FILE" 2>&1; then
+        print_ok "$label installed"
+        INSTALLED+=("$label")
+        return 0
+    fi
+    print_fail "$label"
+    FAILED+=("$label")
+    return 2
+}
+
+xfconf_set() {
+    # Safely call xfconf-query; warn if no session
+    if ! $HAS_DBUS; then
+        log "xfconf skipped (no dbus): $*"
+        return 1
+    fi
+    xfconf-query "$@" 2>>"$LOG_FILE" || true
 }
 
 create_shortcut() {
@@ -133,7 +145,8 @@ echo "  ╚═══════════════════════
 echo -e "${NC}\n"
 echo -e "  This script will set up your MacBook with everything"
 echo -e "  you need for a smooth Linux experience.\n"
-echo -e "  ${CYAN}Estimated time: 10–20 minutes depending on internet speed.${NC}\n"
+echo -e "  ${CYAN}Estimated time: 10–20 minutes depending on internet speed.${NC}"
+echo -e "  ${CYAN}Full log: $LOG_FILE${NC}\n"
 
 # ─────────────────────────────────────────────
 # CHECKS
@@ -156,6 +169,11 @@ if ! sudo -v &>/dev/null; then
 fi
 print_ok "sudo access confirmed"
 
+# Keep sudo alive for the full run (webcam build can take several minutes)
+( while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &>/dev/null &
+SUDO_KEEPALIVE_PID=$!
+trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null || true" EXIT
+
 if ! wget -q --spider --timeout=5 https://deb.debian.org; then
     echo -e "${RED}  ✘ No internet connection detected.${NC}"
     echo -e "${YELLOW}  Please connect to WiFi or a hotspot first, then run this script again.${NC}"
@@ -169,6 +187,17 @@ if ! grep -q "trixie\|13" /etc/os-release; then
     [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
 fi
 print_ok "Debian 13 (Trixie) confirmed"
+
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    HAS_DBUS=false
+    print_warning "No active dbus session detected."
+    print_warning "XFCE settings (shortcuts, power, tiling) will NOT persist."
+    print_warning "For best results, run this script from inside an XFCE session."
+    read -p "  Continue anyway? [y/N] " confirm
+    [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
+else
+    print_ok "dbus user session detected"
+fi
 
 BACKLIGHT_PATH="/sys/class/backlight/intel_backlight"
 if [ -f "$BACKLIGHT_PATH/max_brightness" ]; then
@@ -187,18 +216,60 @@ print_ok "Home directory: $ACTUAL_HOME"
 # ─────────────────────────────────────────────
 print_header "Configuring Package Sources"
 
-SOURCES_FILE="/etc/apt/sources.list"
+# Debian 13 may use either the legacy /etc/apt/sources.list OR the new
+# deb822 format at /etc/apt/sources.list.d/debian.sources. Handle both.
+SOURCES_LEGACY="/etc/apt/sources.list"
+SOURCES_DEB822="/etc/apt/sources.list.d/debian.sources"
 
-if ! grep -q "contrib" "$SOURCES_FILE"; then
-    print_info "Enabling additional package repositories (contrib, non-free)..."
-    sudo sed -i 's/main$/main contrib non-free non-free-firmware/' "$SOURCES_FILE"
-    print_ok "Additional repositories enabled"
+enable_component() {
+    # $1 = file, $2 = component name (contrib, non-free, non-free-firmware)
+    local file=$1 comp=$2
+    if [[ "$file" == *.sources ]]; then
+        # deb822 format: Components: main non-free-firmware
+        if ! grep -qE "^Components:.*\b${comp}\b([^-]|$)" "$file"; then
+            sudo sed -i -E "/^Components:/ s/\$/ ${comp}/" "$file"
+            return 0
+        fi
+    else
+        # Legacy format: deb ... main non-free-firmware
+        if ! grep -qE "\b${comp}\b([^-]|$)" "$file"; then
+            sudo sed -i -E "s/(^deb[^\n]*main[^\n]*)$/\1 ${comp}/" "$file"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+if [ -f "$SOURCES_DEB822" ]; then
+    SOURCES_FILE="$SOURCES_DEB822"
+    FORMAT="deb822"
+elif [ -s "$SOURCES_LEGACY" ]; then
+    SOURCES_FILE="$SOURCES_LEGACY"
+    FORMAT="legacy"
 else
-    print_skip "Package repositories already configured"
+    SOURCES_FILE=""
+    FORMAT="none"
+fi
+
+if [ -n "$SOURCES_FILE" ]; then
+    print_info "Detected APT sources format: $FORMAT ($SOURCES_FILE)"
+    changed=false
+    for comp in contrib non-free non-free-firmware; do
+        if enable_component "$SOURCES_FILE" "$comp"; then
+            changed=true
+        fi
+    done
+    if $changed; then
+        print_ok "Additional repositories enabled (contrib, non-free, non-free-firmware)"
+    else
+        print_skip "Package repositories already configured"
+    fi
+else
+    print_warning "No APT sources file found — skipping component enable"
 fi
 
 print_info "Refreshing package list (this may take a moment)..."
-sudo apt update -y &>/dev/null
+sudo apt update -y >>"$LOG_FILE" 2>&1
 print_ok "Package list is up to date"
 
 # ─────────────────────────────────────────────
@@ -208,8 +279,7 @@ print_header "Desktop Environment"
 echo -e "  ${CYAN}Installing the graphical desktop (XFCE). This is the main GUI.${NC}\n"
 
 install_pkgs "Xorg display server" xorg x11-xserver-utils
-install_pkgs "XFCE desktop environment" xfce4 xfce4-goodies
-if [[ " ${INSTALLED[@]} " =~ "XFCE desktop environment" ]]; then REBOOT_REQUIRED=true; fi
+install_pkgs "XFCE desktop environment" xfce4 xfce4-goodies && REBOOT_REQUIRED=true
 
 # ─────────────────────────────────────────────
 # TERMINAL
@@ -238,6 +308,10 @@ install_pkg "firefox-esr" "Firefox web browser"
 install_pkg "gedit" "gedit text editor"
 install_pkg "cups" "CUPS printing system"
 
+sudo systemctl enable cups >>"$LOG_FILE" 2>&1 || true
+sudo systemctl start cups >>"$LOG_FILE" 2>&1 || true
+print_ok "Printing service enabled"
+
 # ─────────────────────────────────────────────
 # MEDIA AND UTILITIES
 # ─────────────────────────────────────────────
@@ -256,13 +330,15 @@ install_pkg "libreoffice" "LibreOffice (office suite)"
 install_pkg "mtpaint" "mtPaint (simple image editor)"
 install_pkg "rhythmbox" "Rhythmbox (music player)"
 
-# Screenshot Shortcut Config
 print_info "Configuring screenshot shortcut..."
-xfconf-query -c xfce4-keyboard-shortcuts -p '/commands/custom/<Primary><Alt>s' -s 'flameshot gui' --create -t string 2>/dev/null || true
+xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Primary><Alt>s' -s 'flameshot gui' --create -t string
 print_ok "Screenshot shortcut set to Ctrl+Alt+S (flameshot)"
 
-# Enable Window Tiling by Disabling Workspace Wrapping
-xfconf-query -c xfwm4 -p /general/wrap_windows -s false 2>/dev/null || true
+# Real window tiling — tile_on_move is the setting that snaps windows
+# to screen edges when dragged. wrap_windows is about workspace wrapping.
+xfconf_set -c xfwm4 -p /general/tile_on_move -s true --create -t bool
+xfconf_set -c xfwm4 -p /general/snap_to_border -s true --create -t bool
+xfconf_set -c xfwm4 -p /general/wrap_windows -s false --create -t bool
 print_ok "Window tiling enabled — drag windows to screen edges to snap them"
 
 # ─────────────────────────────────────────────
@@ -271,13 +347,12 @@ print_ok "Window tiling enabled — drag windows to screen edges to snap them"
 print_header "WiFi Management"
 echo -e "  ${CYAN}Switching from manual WiFi commands to automatic GUI-based management.${NC}\n"
 
-install_pkgs "NetworkManager" network-manager network-manager-gnome
-if [[ " ${INSTALLED[@]} " =~ "NetworkManager" ]]; then REBOOT_REQUIRED=true; fi
+install_pkgs "NetworkManager" network-manager network-manager-gnome && REBOOT_REQUIRED=true
 
 if systemctl is-enabled wpa_supplicant &>/dev/null; then
     print_info "Disabling manual WiFi service (wpa_supplicant)..."
-    sudo systemctl disable wpa_supplicant &>/dev/null
-    sudo systemctl stop wpa_supplicant &>/dev/null
+    sudo systemctl disable wpa_supplicant >>"$LOG_FILE" 2>&1 || true
+    sudo systemctl stop wpa_supplicant >>"$LOG_FILE" 2>&1 || true
     print_ok "Manual WiFi service disabled"
 else
     print_skip "wpa_supplicant was not active"
@@ -285,8 +360,8 @@ fi
 
 if systemctl is-enabled dhcpcd &>/dev/null; then
     print_info "Disabling manual IP service (dhcpcd)..."
-    sudo systemctl disable dhcpcd &>/dev/null
-    sudo systemctl stop dhcpcd &>/dev/null
+    sudo systemctl disable dhcpcd >>"$LOG_FILE" 2>&1 || true
+    sudo systemctl stop dhcpcd >>"$LOG_FILE" 2>&1 || true
     print_ok "Manual IP service disabled"
 else
     print_skip "dhcpcd was not active"
@@ -301,8 +376,8 @@ else
     print_skip "NetworkManager already managing all interfaces"
 fi
 
-sudo systemctl enable NetworkManager &>/dev/null
-sudo systemctl start NetworkManager &>/dev/null
+sudo systemctl enable NetworkManager >>"$LOG_FILE" 2>&1 || true
+sudo systemctl start NetworkManager >>"$LOG_FILE" 2>&1 || true
 print_ok "NetworkManager is running — WiFi will connect automatically on boot"
 
 # ─────────────────────────────────────────────
@@ -311,8 +386,8 @@ print_ok "NetworkManager is running — WiFi will connect automatically on boot"
 print_header "MacBook Keyboard Fixes"
 echo -e "  ${CYAN}Remapping keys so your Mac keyboard works naturally on Linux.${NC}\n"
 
-install_pkg "keyd" "keyd (key remapper)"
-install_pkg "brightness-udev" "brightness-udev (backlight permissions)"
+install_pkg "keyd" "keyd (key remapper)" && REBOOT_REQUIRED=true
+install_pkg "brightness-udev" "brightness-udev (backlight permissions)" || true
 install_pkg "rofi" "rofi (window switcher for F3)"
 
 KEYD_CONF="/etc/keyd/default.conf"
@@ -337,7 +412,7 @@ meta+space = A-f2
 dashboard = A-f2
 
 # F3 - Mission Control equivalent (rofi window switcher)
-scale = command(sh -c 'DISPLAY=:0 XAUTHORITY=$ACTUAL_HOME/.Xauthority rofi -show window -show-icons -theme Arc-Dark')
+scale = command(sh -c 'DISPLAY=:0 XAUTHORITY=$ACTUAL_HOME/.Xauthority rofi -show window -show-icons')
 
 # Brightness keys (via sysfs)
 brightnessdown = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val > 200 ? val - 200 : 100)) | tee /sys/class/backlight/intel_backlight/brightness')
@@ -357,9 +432,8 @@ EOF
 
 print_ok "Keyboard config written"
 
-sudo systemctl enable keyd &>/dev/null
-sudo systemctl restart keyd &>/dev/null
-if [[ " ${INSTALLED[@]} " =~ "keyd (key remapper)" ]]; then REBOOT_REQUIRED=true; fi
+sudo systemctl enable keyd >>"$LOG_FILE" 2>&1 || true
+sudo systemctl restart keyd >>"$LOG_FILE" 2>&1 || true
 print_ok "Keyboard remapping is active"
 
 echo -e "\n  ${CYAN}Key mappings applied:${NC}"
@@ -367,9 +441,9 @@ echo -e "  • Cmd key now works as Ctrl"
 echo -e "  • Cmd+Space / F4 opens app finder"
 echo -e "  • F1/F2 controls screen brightness"
 echo -e "  • F3 opens window switcher"
-echo -e "  • F5/F6 controls keyboard backlight"
-echo -e "  • F7/F8/F9 controls media playback"
-echo -e "  • F10/F11/F12 controls volume"
+echo -e "  • F5/F6 controls keyboard backlight (via kernel)"
+echo -e "  • F7/F8/F9 controls media playback (via kernel)"
+echo -e "  • F10/F11/F12 controls volume (via kernel)"
 echo -e "  • Cmd+Left/Right jumps to start/end of line"
 echo -e "  • Cmd+Up/Down jumps to start/end of document\n"
 
@@ -384,7 +458,7 @@ install_pkgs "Build tools for webcam driver" git curl cpio make build-essential 
 KERNEL_VERSION=$(uname -r)
 if ! dpkg -s "linux-headers-$KERNEL_VERSION" &>/dev/null; then
     print_info "Installing kernel headers for $KERNEL_VERSION..."
-    if sudo apt install -y "linux-headers-$KERNEL_VERSION" &>/dev/null; then
+    if sudo apt install -y "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1; then
         print_ok "Kernel headers installed"
         INSTALLED+=("Kernel headers")
     else
@@ -396,38 +470,59 @@ else
     SKIPPED+=("Kernel headers")
 fi
 
-if sudo dkms status | grep -q "facetimehd.*installed"; then
+# FaceTime HD firmware — idempotent build
+if ls /lib/firmware/facetimehd/* &>/dev/null; then
+    print_skip "FaceTime HD firmware"
+    SKIPPED+=("FaceTime HD firmware")
+else
+    print_info "Downloading and building FaceTime HD firmware (this may take a few minutes)..."
+    if (
+        set -e
+        cd /tmp
+        rm -rf facetimehd-firmware
+        git clone https://github.com/patjak/facetimehd-firmware.git
+        cd facetimehd-firmware
+        make
+        sudo make install
+        cd /tmp
+        rm -rf facetimehd-firmware
+    ) >>"$LOG_FILE" 2>&1; then
+        print_ok "FaceTime HD firmware installed"
+        INSTALLED+=("FaceTime HD firmware")
+    else
+        print_fail "FaceTime HD firmware (see $LOG_FILE)"
+        FAILED+=("FaceTime HD firmware")
+    fi
+fi
+
+# FaceTime HD kernel module — idempotent DKMS build
+if sudo dkms status 2>/dev/null | grep -q "facetimehd.*installed"; then
     print_skip "FaceTime HD webcam driver"
     SKIPPED+=("FaceTime HD webcam driver")
 else
-    print_info "Downloading and building FaceTime HD firmware (this may take a few minutes)..."
-    (
-        cd /tmp
-        git clone https://github.com/patjak/facetimehd-firmware.git &>/dev/null
-        cd facetimehd-firmware
-        make &>/dev/null
-        sudo make install &>/dev/null
-        cd /tmp
-        rm -rf facetimehd-firmware
-    )
-    print_ok "FaceTime HD firmware installed"
-
     print_info "Building FaceTime HD kernel module..."
-    (
-        cd /tmp
-        git clone https://github.com/patjak/facetimehd.git &>/dev/null
-        cd facetimehd
-        FTHD_VERSION=$(grep "^PACKAGE_VERSION" dkms.conf | cut -d= -f2)
-        sudo cp -r /tmp/facetimehd /usr/src/facetimehd-$FTHD_VERSION
-        sudo dkms add -m facetimehd -v $FTHD_VERSION &>/dev/null
-        sudo dkms build -m facetimehd -v $FTHD_VERSION &>/dev/null
-        sudo dkms install -m facetimehd -v $FTHD_VERSION &>/dev/null
+    if (
+        set -e
         cd /tmp
         rm -rf facetimehd
-    )
-    print_ok "FaceTime HD webcam driver installed"
-    REBOOT_REQUIRED=true
-    INSTALLED+=("FaceTime HD webcam driver")
+        git clone https://github.com/patjak/facetimehd.git
+        cd facetimehd
+        FTHD_VERSION=$(grep "^PACKAGE_VERSION" dkms.conf | cut -d= -f2)
+        sudo rm -rf "/usr/src/facetimehd-$FTHD_VERSION"
+        sudo cp -r /tmp/facetimehd "/usr/src/facetimehd-$FTHD_VERSION"
+        sudo dkms add -m facetimehd -v "$FTHD_VERSION" || true
+        sudo dkms build -m facetimehd -v "$FTHD_VERSION"
+        sudo dkms install -m facetimehd -v "$FTHD_VERSION"
+        cd /tmp
+        rm -rf facetimehd
+    ) >>"$LOG_FILE" 2>&1; then
+        print_ok "FaceTime HD webcam driver installed"
+        INSTALLED+=("FaceTime HD webcam driver")
+        REBOOT_REQUIRED=true
+    else
+        print_fail "FaceTime HD webcam driver (see $LOG_FILE)"
+        FAILED+=("FaceTime HD webcam driver")
+    fi
 fi
 
 if ! grep -q "facetimehd" /etc/modules-load.d/facetimehd.conf 2>/dev/null; then
@@ -449,23 +544,46 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# BATTERY AND POWER
+# BATTERY AND POWER MANAGEMENT
 # ─────────────────────────────────────────────
 print_header "Battery and Power Management"
-echo -e "  ${CYAN}Setting up battery indicator and lid close behavior.${NC}\n"
+echo -e "  ${CYAN}Configuring power behavior (suspend + automatic hibernate).${NC}\n"
 
+# XFCE (user input layer)
 install_pkg "xfce4-battery-plugin" "Battery indicator plugin"
 install_pkg "xfce4-power-manager" "Power manager"
 
 print_info "Configuring lid close to suspend and lock screen..."
-xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lid-action-on-ac -s 2 --create -t int 2>/dev/null || true
-xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lid-action-on-battery -s 2 --create -t int 2>/dev/null || true
-xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lock-screen-suspend-hibernate -s true --create -t bool 2>/dev/null || true
-print_ok "Lid close configured — closing lid will suspend and lock your screen"
+xfconf_set -c xfce4-power-manager -p /xfce4-power-manager/lid-action-on-ac -s 2 --create -t int
+xfconf_set -c xfce4-power-manager -p /xfce4-power-manager/lid-action-on-battery -s 2 --create -t int
+xfconf_set -c xfce4-power-manager -p /xfce4-power-manager/lock-screen-suspend-hibernate -s true --create -t bool
+print_ok "XFCE configured — lid close triggers suspend only"
 
-sudo systemctl enable cups &>/dev/null
-sudo systemctl start cups &>/dev/null
-print_ok "Printing service enabled"
+# systemd (power policy layer)
+print_info "Configuring systemd suspend-then-hibernate..."
+sudo mkdir -p /etc/systemd
+sudo tee /etc/systemd/sleep.conf > /dev/null << 'EOF'
+[Sleep]
+AllowSuspendThenHibernate=yes
+HibernateDelaySec=30min
+EOF
+print_ok "systemd configured — suspend → hibernate after 30 minutes"
+
+# polkit (authority / safety layer)
+print_info "Restricting user-space hibernate requests (XFCE)..."
+sudo mkdir -p /etc/polkit-1/rules.d
+sudo tee /etc/polkit-1/rules.d/50-disable-hibernate.rules > /dev/null << 'EOF'
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.login1.hibernate") {
+        return polkit.Result.NO;
+    }
+});
+EOF
+print_ok "Hibernate restricted to system-level control only"
+
+# sleep.conf is re-read by systemd-logind on demand, so no restart needed.
+# (Restarting systemd-logind can terminate the active user session.)
+print_ok "Power management changes will take effect after reboot"
 
 # ─────────────────────────────────────────────
 # SYSTEM MONITORING
@@ -594,11 +712,11 @@ NOTE: On this setup, the Cmd key works as Ctrl.
   Ctrl+Shift+Esc     Open task manager
   Ctrl+Alt+Esc       Click a window to force quit it
   Ctrl+Alt+Delete    Log out / shutdown menu
-  Ctrl+Alt+S         Screenshot (flameshot)
 
 ───────────────────────────────────────────────────────
-  WINDOW TILING (snap windows to screen edges)
+  WINDOW TILING (drag to edge OR use keys)
 ───────────────────────────────────────────────────────
+  Drag to edge       Snap window to that half of screen
   Cmd+KP_Left        Tile window to left half
   Cmd+KP_Right       Tile window to right half
   Cmd+KP_Up          Tile window to top half
@@ -647,8 +765,10 @@ if [ ${#FAILED[@]} -gt 0 ]; then
     for item in "${FAILED[@]}"; do
         echo -e "  ${RED}✘ $item${NC}"
     done
-    echo -e "\n${RED}  Some items failed to install. Please check your internet connection and try again.${NC}"
+    echo -e "\n${RED}  Some items failed. Full details in: $LOG_FILE${NC}"
 fi
+
+echo -e "\n${CYAN}  Full log saved to: $LOG_FILE${NC}"
 
 # ─────────────────────────────────────────────
 # NEXT STEPS
