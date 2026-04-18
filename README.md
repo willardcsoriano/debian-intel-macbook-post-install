@@ -16,6 +16,14 @@ Apple Silicon Macs (M1, M2, M3, M4 — released 2020 onwards) use ARM
 architecture and are not supported. Apple Silicon Linux support is handled
 by the separate Asahi Linux project.
 
+**This script targets Debian GNU/Linux 13 (Trixie) only.**
+
+Ubuntu and Linux Mint are not tested and not officially supported. Most
+apt-based steps will likely work, but keyd availability varies by Ubuntu
+version and may require a PPA. The facetimehd driver builds from source
+via DKMS and should work on any kernel as long as headers are installed.
+If you test this on Ubuntu or Mint, open an issue with your results.
+
 Tested on MacBook Air 7,2 (2015, 13-inch). Should work on most Intel
 MacBooks from 2012–2019 running Debian 13 Trixie.
 
@@ -23,10 +31,7 @@ MacBooks from 2012–2019 running Debian 13 Trixie.
 
 ## The Story So Far
 
-If you just came from the Broadcom offline repo, you have accomplished
-something genuinely difficult — you installed Linux on a MacBook with no
-internet access and got WiFi working entirely from a USB stick. That is
-not a beginner task and you should feel good about it.
+If you just came from the [Broadcom offline repo](https://github.com/willardcsoriano/debian-intel-macbook-broadcom-offline), you have accomplished something genuinely difficult — you installed Linux on a MacBook with no internet access and got WiFi working entirely from a USB stick. That is not a beginner task and you should feel good about it.
 
 But right now you are staring at a terminal. No desktop, no browser, no
 way to adjust brightness, no GUI tools, no keyboard shortcuts that feel
@@ -45,9 +50,7 @@ Security updates have stopped. On top of that, Monterey consumes roughly
 4GB of RAM at idle on 8GB hardware, leaving almost nothing available for
 actual work.
 
-Debian Trixie at idle uses under 500MB. The machine that felt sluggish
-and unusable under macOS becomes fast and responsive again. That is the
-whole point of this migration.
+Debian Trixie at idle uses under 500MB. After running this post-install script, idle RAM rises to approximately 1GB — XFCE, NetworkManager, Bluetooth, and the FaceTime driver all add overhead that a terminal-only install does not have. That is still well under a quarter of what Monterey uses on the same hardware, and you now have a fully functional desktop.
 
 ---
 
@@ -61,8 +64,7 @@ This script is for users who have:
 4. Internet connected via wpa_supplicant and dhcpcd
 5. A terminal and nothing else
 
-If you have not yet gotten WiFi working, start here first:
-https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
+If you have not yet gotten WiFi working, start [here](https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline) first.
 
 ---
 
@@ -207,7 +209,7 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/main/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.0/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
