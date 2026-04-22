@@ -273,6 +273,47 @@ sudo apt update -y >>"$LOG_FILE" 2>&1
 print_ok "Package list is up to date"
 
 # ─────────────────────────────────────────────
+# BROADCOM WIFI HARDENING
+# ─────────────────────────────────────────────
+print_header "Broadcom WiFi Hardening"
+echo -e "  ${CYAN}Locking in the Broadcom driver rebuild chain so WiFi survives kernel updates.${NC}\n"
+
+# DKMS and kernel headers — without these, the Broadcom driver
+# vanishes silently on every kernel update
+install_pkg "dkms" "DKMS (kernel module rebuild framework)"
+install_pkg "linux-headers-amd64" "linux-headers-amd64 (kernel headers meta-package)"
+print_ok "Broadcom driver rebuild chain secured"
+
+# Blacklist conflicting open-source Broadcom modules — b43, bcma, and ssb
+# fight with the proprietary wl driver and win, causing random WiFi drops
+BLACKLIST_FILE="/etc/modprobe.d/broadcom-blacklist.conf"
+if [ ! -f "$BLACKLIST_FILE" ]; then
+    print_info "Blacklisting conflicting Broadcom modules (b43, bcma, ssb)..."
+    sudo tee "$BLACKLIST_FILE" > /dev/null << 'EOF'
+blacklist b43
+blacklist bcma
+blacklist ssb
+EOF
+    print_ok "Conflicting modules blacklisted"
+else
+    print_skip "Broadcom blacklist already configured"
+fi
+
+# Persist the wl module across reboots — modprobe alone doesn't survive a restart
+if ! grep -q "wl" /etc/modules-load.d/broadcom.conf 2>/dev/null; then
+    print_info "Setting wl module to load automatically on boot..."
+    echo "wl" | sudo tee /etc/modules-load.d/broadcom.conf > /dev/null
+    print_ok "wl module set to load on boot"
+else
+    print_skip "wl boot config already set"
+fi
+
+# Swap check — 8GB RAM with no swap will hard freeze on OOM with no warning
+if ! swapon --show | grep -q .; then
+    print_warning "No swap detected — consider adding a swapfile to prevent out-of-memory freezes"
+fi
+
+# ─────────────────────────────────────────────
 # DESKTOP ENVIRONMENT
 # ─────────────────────────────────────────────
 print_header "Desktop Environment"
