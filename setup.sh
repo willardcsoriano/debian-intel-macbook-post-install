@@ -354,6 +354,43 @@ sudo systemctl start cups >>"$LOG_FILE" 2>&1 || true
 print_ok "Printing service enabled"
 
 # ─────────────────────────────────────────────
+# VISUAL STUDIO CODE
+# ─────────────────────────────────────────────
+print_header "Visual Studio Code"
+echo -e "  ${CYAN}Installing VS Code from Microsoft's,  official apt repository.${NC}\n"
+
+install_pkgs "VS Code prerequisites" wget gpg apt-transport-https
+
+VSCODE_KEY="/usr/share/keyrings/packages.microsoft.gpg"
+VSCODE_LIST="/etc/apt/sources.list.d/vscode.list"
+
+if [ ! -f "$VSCODE_KEY" ]; then
+    print_info "Adding Microsoft GPG key..."
+    if wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
+        | gpg --dearmor 2>>"$LOG_FILE" \
+        | sudo tee "$VSCODE_KEY" > /dev/null; then
+        print_ok "Microsoft GPG key added"
+    else
+        print_fail "Microsoft GPG key"
+        FAILED+=("Microsoft GPG key")
+    fi
+else
+    print_skip "Microsoft GPG key"
+fi
+
+if [ ! -f "$VSCODE_LIST" ]; then
+    print_info "Adding VS Code apt repository..."
+    echo "deb [arch=amd64,arm64,armhf signed-by=$VSCODE_KEY] https://packages.microsoft.com/repos/code stable main" \
+        | sudo tee "$VSCODE_LIST" > /dev/null
+    sudo apt update -y >>"$LOG_FILE" 2>&1
+    print_ok "VS Code repository added"
+else
+    print_skip "VS Code repository"
+fi
+
+install_pkg "code" "Visual Studio Code"
+
+# ─────────────────────────────────────────────
 # MEDIA AND UTILITIES
 # ─────────────────────────────────────────────
 print_header "Media and Utilities"
@@ -369,8 +406,9 @@ install_pkg "simple-scan" "Simple Scan (scanning app)"
 install_pkg "xfce4-clipman-plugin" "Clipman (clipboard manager)"
 install_pkg "libreoffice" "LibreOffice (office suite)"
 install_pkg "mtpaint" "mtPaint (simple image editor)"
-install_pkg "rhythmbox" "Rhythmbox (music player)"
 install_pkg "gdebi" "gdebi (package installer)"
+install_pkg "poppler-utils" "poppler-utils (PDF command-line tools)"
+install_pkg "speech-dispatcher" "speech-dispatcher (text-to-speech)"
 
 print_info "Configuring screenshot shortcut..."
 xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Primary><Alt>s' -s 'flameshot gui' --create -t string
@@ -670,7 +708,7 @@ create_shortcut "LibreOffice Writer" "libreoffice --writer" "libreoffice-writer"
 create_shortcut "LibreOffice Calc" "libreoffice --calc" "libreoffice-calc"
 create_shortcut "LibreOffice Impress" "libreoffice --impress" "libreoffice-impress"
 create_shortcut "Image Editor" "mtpaint" "applications-graphics"
-create_shortcut "Music" "rhythmbox" "rhythmbox"
+create_shortcut "VS Code" "code" "code"
 
 cat > "$ACTUAL_HOME/Desktop/KEYBOARD SHORTCUTS.txt" << 'SHORTCUTS'
 ═══════════════════════════════════════════════════════

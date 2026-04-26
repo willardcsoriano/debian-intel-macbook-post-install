@@ -88,6 +88,10 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 - gedit — simple text editor, similar feel to TextEdit on macOS
 - cups — printing system, works with most USB and network printers
 
+### Code Editor
+- code (Visual Studio Code) — installed from Microsoft's official apt
+  repository so it stays current via normal apt updates
+
 ### Media and Utilities
 - flameshot — screenshot tool with annotation support. Shortcut: Ctrl+Alt+S
 - xfce4-screenshooter — basic screenshot tool bound to the Print key
@@ -99,7 +103,9 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 - xfce4-clipman-plugin — clipboard history manager
 - libreoffice — full office suite (Writer, Calc, Impress). Large download ~300MB.
 - mtpaint — simple image editor similar to Microsoft Paint
-- rhythmbox — music player for local libraries
+- gdebi — GUI installer for standalone .deb packages
+- poppler-utils — command-line PDF tools (pdftotext, pdfinfo, pdfimages)
+- speech-dispatcher — text-to-speech backend for accessibility tools
 
 ### WiFi Management
 - network-manager + network-manager-gnome — replaces the manual
