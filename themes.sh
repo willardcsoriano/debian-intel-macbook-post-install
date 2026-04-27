@@ -2,9 +2,13 @@
 set -e
 
 # ─────────────────────────────────────────────
-# PREPARATION
+# SHARED PATHS
 # ─────────────────────────────────────────────
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SEARCH_DIRS=(
+    /usr/share/applications
+    /usr/local/share/applications
+    "$HOME/.local/share/applications"
+)
 
 # ─────────────────────────────────────────────
 # MODE SELECTION
@@ -54,14 +58,14 @@ CURATED_APPS=(
     "xfce4-clipman"
 )
 
-# Copies curated .desktop files to ~/Desktop, strips OnlyShowIn/NotShowIn,
-# and marks each file trusted. Searches all three standard app directories
-# so apps installed outside /usr/share/applications are included.
-place_desktop_icons() {
+# Generates the System Info launcher when fastfetch and a terminal are both
+# available. Returns the launcher path on stdout (empty if not generated).
+generate_sysinfo_launcher() {
     local sysinfo_src="$HOME/.local/share/applications/system-info.desktop"
-    if command -v fastfetch &>/dev/null; then
-        mkdir -p "$HOME/.local/share/applications"
-        cat > "$sysinfo_src" << 'EOF'
+    command -v fastfetch &>/dev/null || return 0
+    command -v gnome-terminal &>/dev/null || return 0
+    mkdir -p "$HOME/.local/share/applications"
+    cat > "$sysinfo_src" << 'EOF'
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -72,20 +76,32 @@ Icon=computer
 Terminal=false
 Categories=System;
 EOF
-    fi
+    echo "$sysinfo_src"
+}
+
+# Marks a .desktop file as trusted so XFCE skips the "Untrusted application
+# launcher" prompt on first click. Sets both metadata keys for compatibility
+# across XFCE versions (checksum: 4.14+, trusted flag: 4.16+).
+mark_desktop_trusted() {
+    local file=$1
+    gio set "$file" "metadata::xfce-exe-checksum" \
+        "$(sha256sum "$file" | awk '{print $1}')" 2>/dev/null || true
+    gio set "$file" "metadata::trusted" true 2>/dev/null || true
+}
+
+# Copies curated .desktop files to ~/Desktop, strips OnlyShowIn/NotShowIn,
+# and marks each file trusted. Searches all standard app directories so apps
+# installed outside /usr/share/applications are included.
+place_desktop_icons() {
+    local sysinfo_src
+    sysinfo_src=$(generate_sysinfo_launcher)
 
     local desktop_dir="$HOME/Desktop"
     mkdir -p "$desktop_dir"
 
-    local search_dirs=(
-        /usr/share/applications
-        /usr/local/share/applications
-        "$HOME/.local/share/applications"
-    )
-
     for entry in "${CURATED_APPS[@]}"; do
         for cand in $entry; do
-            for dir in "${search_dirs[@]}"; do
+            for dir in "${SEARCH_DIRS[@]}"; do
                 local src="$dir/${cand}.desktop"
                 [ -f "$src" ] || continue
                 local dest="$desktop_dir/${cand}.desktop"
@@ -98,22 +114,17 @@ EOF
                 # be filtered out by XFCE and never render on the desktop.
                 # Runs unconditionally so reruns repair files left by older versions.
                 sed -i -E '/^(OnlyShowIn|NotShowIn)=/d' "$dest"
-                # Mark trusted so XFCE skips the "Untrusted application launcher"
-                # prompt on first click. Recomputed each run since the strip
-                # above changes the file's checksum.
-                gio set "$dest" "metadata::xfce-exe-checksum" \
-                    "$(sha256sum "$dest" | awk '{print $1}')" 2>/dev/null || true
+                mark_desktop_trusted "$dest"
                 break 2
             done
         done
     done
 
-    if [ -f "$sysinfo_src" ]; then
+    if [ -n "$sysinfo_src" ] && [ -f "$sysinfo_src" ]; then
         local sysinfo_dest="$desktop_dir/system-info.desktop"
         cp "$sysinfo_src" "$sysinfo_dest"
         chmod +x "$sysinfo_dest"
-        gio set "$sysinfo_dest" "metadata::xfce-exe-checksum" \
-            "$(sha256sum "$sysinfo_dest" | awk '{print $1}')" 2>/dev/null || true
+        mark_desktop_trusted "$sysinfo_dest"
     fi
 }
 
@@ -121,6 +132,16 @@ EOF
 # MODE 3 — REVERT TO VANILLA XFCE
 # ─────────────────────────────────────────────
 if [[ "$MODE" == "3" ]]; then
+    echo ""
+    echo "  This will remove WhiteSur themes/icons, Plank, the docklike plugin,"
+    echo "  and reset XFCE panel/desktop config to defaults."
+    echo ""
+    read -p "  Continue? [y/N]: " CONFIRM
+    if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
+        echo "Aborted."
+        exit 0
+    fi
+
     echo "Reverting to vanilla XFCE..."
 
     # Stop Plank before removing its files
@@ -190,9 +211,10 @@ echo "Checking for broken package state..."
 sudo apt --fix-broken install -y >>/dev/null 2>&1 || true
 sudo apt clean >>/dev/null 2>&1 || true
 
-# Check internet connectivity before proceeding
+# Check internet connectivity before proceeding. curl is part of the base
+# system on Debian; wget is not always present on minimal installs.
 echo "Checking internet connectivity..."
-if ! wget -q --spider --timeout=5 https://deb.debian.org; then
+if ! curl --silent --head --max-time 5 https://deb.debian.org >/dev/null; then
     echo -e "\033[0;31m✘ No internet connection detected.\033[0m"
     echo "Please connect to WiFi or check your network, then run this script again."
     exit 1
@@ -252,53 +274,69 @@ xfconf-query -c xfwm4 -p /general/theme -s "WhiteSur-Dark"
 # Move window buttons to the left (macOS style: close, minimize, maximize)
 xfconf-query -c xfwm4 -p /general/button_layout -s "CMH|L"
 
-# Add docklike plugin to panel 1 only if not already added
+# Add docklike plugin to panel 1 only if not already added.
+# Find the highest existing plugin ID across the entire panel config (not just
+# panel-1's plugin-ids) so we never collide with a plugin defined elsewhere.
 PANEL_XML="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+PANEL_CHANGED=0
 if ! grep -q 'value="docklike"' "$PANEL_XML" 2>/dev/null; then
-    MAX_ID=$(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null \
-             | grep -oE '[0-9]+' | sort -n | tail -1)
-    MAX_ID=${MAX_ID:-30}
+    MAX_ID=$(xfconf-query -c xfce4-panel -lv 2>/dev/null \
+             | grep -oE '/plugins/plugin-[0-9]+' \
+             | grep -oE '[0-9]+$' | sort -n | tail -1)
+    MAX_ID=${MAX_ID:-0}
     DOCKLIKE_ID=$((MAX_ID + 1))
     xfconf-query -c xfce4-panel -p /plugins/plugin-$DOCKLIKE_ID --create -t string -s "docklike"
     ARGS=()
     while IFS= read -r id; do
         ARGS+=(-t int -s "$id")
-    done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -oE '[0-9]+')
+    done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -oE '^[0-9]+$')
     ARGS+=(-t int -s "$DOCKLIKE_ID")
     xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --force-array "${ARGS[@]}"
+    PANEL_CHANGED=1
 fi
 
 # Remove panel 2 (default bottom taskbar) — competes with Plank
 if xfconf-query -c xfce4-panel -p /panels 2>/dev/null | grep -q "^2$"; then
     xfconf-query -c xfce4-panel -p /panels --force-array -t int -s 1
     xfconf-query -c xfce4-panel -p /panels/panel-2 -r -R 2>/dev/null || true
+    PANEL_CHANGED=1
+fi
+
+# Restart panel once if anything changed, so plugin/panel edits take effect now
+# instead of waiting for next login.
+if [ "$PANEL_CHANGED" = "1" ]; then
     xfce4-panel --restart 2>/dev/null || true
 fi
 
-# Wallpaper — auto-detect monitor name, apply solid near-black
-MONITOR=$(xrandr | awk '/ connected/{print $1; exit}')
+# Seeds Plank's default config by starting it briefly, waiting for the
+# settings file to materialize (poll up to ~10 s), then stopping it. Using
+# a poll instead of a fixed sleep keeps this reliable on slow hardware.
+seed_plank_config() {
+    pkill plank 2>/dev/null || true
+    sleep 1
+    plank &
+    local i
+    for i in $(seq 1 20); do
+        [ -f "$HOME/.config/plank/dock1/settings" ] && break
+        sleep 0.5
+    done
+    pkill plank 2>/dev/null || true
+    sleep 1
+}
+
+# Wallpaper — auto-detect monitor name, apply solid near-black.
+# Prefer the primary output; fall back to the first connected output.
+MONITOR=$(xrandr --query 2>/dev/null | awk '/ connected primary/{print $1; exit}')
+[ -z "$MONITOR" ] && MONITOR=$(xrandr --query 2>/dev/null | awk '/ connected/{print $1; exit}')
 BASE="/backdrop/screen0/monitor${MONITOR}/workspace0"
 xfconf-query -c xfce4-desktop -p "${BASE}/color-style" --create -t int -s 0
-xfconf-query -c xfce4-desktop -p "${BASE}/rgba1" --create -t double -s 0.08 -t double -s 0.08 -t double -s 0.10 -t double -s 1.0
+xfconf-query -c xfce4-desktop -p "${BASE}/rgba1" --create --force-array \
+    -t double -s 0.08 -t double -s 0.08 -t double -s 0.10 -t double -s 1.0
 xfconf-query -c xfce4-desktop -p "${BASE}/image-style" --create -t int -s 0
 
 # System Info — generated here for Mode 2's dock launcher reference.
 # place_desktop_icons() also generates it independently for Modes 1 and 3.
-SYSINFO_SRC="$HOME/.local/share/applications/system-info.desktop"
-if command -v fastfetch &>/dev/null; then
-    mkdir -p "$HOME/.local/share/applications"
-    cat > "$SYSINFO_SRC" << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=System Info
-Comment=Show system information
-Exec=gnome-terminal -- fastfetch
-Icon=computer
-Terminal=false
-Categories=System;
-EOF
-fi
+SYSINFO_SRC=$(generate_sysinfo_launcher)
 
 # ─────────────────────────────────────────────
 # MODE 1 — CLASSIC
@@ -311,12 +349,7 @@ if [[ "$MODE" == "1" ]]; then
     place_desktop_icons
 
     # Plank settings — default theme, shows open apps only
-    pkill plank 2>/dev/null || true
-    sleep 1
-    plank &
-    sleep 3
-    pkill plank 2>/dev/null || true
-    sleep 1
+    seed_plank_config
 
     mkdir -p ~/.config/plank/dock1
     cat > ~/.config/plank/dock1/settings << EOF
@@ -351,12 +384,7 @@ if [[ "$MODE" == "2" ]]; then
     rm -f ~/Desktop/*.desktop
 
     # Plank settings — transparent theme, all apps as launchers
-    pkill plank 2>/dev/null || true
-    sleep 1
-    plank &
-    sleep 3
-    pkill plank 2>/dev/null || true
-    sleep 1
+    seed_plank_config
 
     mkdir -p ~/.config/plank/dock1
     cat > ~/.config/plank/dock1/settings << EOF
@@ -380,12 +408,10 @@ EOF
     mkdir -p ~/.config/plank/dock1/launchers
     rm -f ~/.config/plank/dock1/launchers/*.dockitem
 
-    SEARCH_DIRS=(
-        /usr/share/applications
-        /usr/local/share/applications
-        "$HOME/.local/share/applications"
-    )
-
+    # Sort= positions each item left-to-right; lower = leftmost. Increment as
+    # we place each launcher so curated order is preserved regardless of
+    # filename-based sorting Plank may otherwise apply.
+    sort_idx=10
     for entry in "${CURATED_APPS[@]}"; do
         for cand in $entry; do
             for dir in "${SEARCH_DIRS[@]}"; do
@@ -394,24 +420,29 @@ EOF
                 cat > ~/.config/plank/dock1/launchers/${cand}.dockitem << EOF
 [PlankDockItemPreferences]
 Launcher=file://${src}
+Sort=${sort_idx}
 EOF
+                sort_idx=$((sort_idx + 1))
                 break 2
             done
         done
     done
 
     # System Info dock launcher
-    if [ -f "$SYSINFO_SRC" ]; then
+    if [ -n "$SYSINFO_SRC" ] && [ -f "$SYSINFO_SRC" ]; then
         cat > ~/.config/plank/dock1/launchers/system-info.dockitem << EOF
 [PlankDockItemPreferences]
 Launcher=file://${SYSINFO_SRC}
+Sort=${sort_idx}
 EOF
+        sort_idx=$((sort_idx + 1))
     fi
 
-    # Trash docklet — prefixed with zzz_ so it sorts last (rightmost)
+    # Trash docklet — explicit high Sort so it always lands rightmost.
     cat > ~/.config/plank/dock1/launchers/zzz-trash.dockitem << EOF
 [PlankDockItemPreferences]
 Launcher=docklet://trash
+Sort=9999
 EOF
 
 fi

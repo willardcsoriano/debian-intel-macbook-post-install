@@ -172,14 +172,27 @@ print_ok "sudo access confirmed"
 # Keep sudo alive for the full run (webcam build can take several minutes)
 ( while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &>/dev/null &
 SUDO_KEEPALIVE_PID=$!
-trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null || true" EXIT
+trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null || true" EXIT INT TERM
 
-if ! wget -q --spider --timeout=5 https://deb.debian.org; then
-    echo -e "${RED}  ✘ No internet connection detected.${NC}"
-    echo -e "${YELLOW}  Please connect to WiFi or a hotspot first, then run this script again.${NC}"
-    exit 1
+# Use whichever HTTP client is on the system; minimal Debian may lack wget
+if command -v wget &>/dev/null; then
+    NET_CHECK="wget -q --spider --timeout=5 https://deb.debian.org"
+elif command -v curl &>/dev/null; then
+    NET_CHECK="curl -fsS --max-time 5 -o /dev/null https://deb.debian.org"
+else
+    NET_CHECK=""
 fi
-print_ok "Internet connection is working"
+if [ -z "$NET_CHECK" ] || ! eval "$NET_CHECK"; then
+    if [ -z "$NET_CHECK" ]; then
+        print_warning "Neither wget nor curl found — skipping connectivity check."
+    else
+        echo -e "${RED}  ✘ No internet connection detected.${NC}"
+        echo -e "${YELLOW}  Please connect to WiFi or a hotspot first, then run this script again.${NC}"
+        exit 1
+    fi
+else
+    print_ok "Internet connection is working"
+fi
 
 if ! grep -q "trixie\|13" /etc/os-release; then
     print_warning "This script was tested on Debian 13 (Trixie). Your system may differ."
@@ -208,7 +221,7 @@ else
     print_warning "Could not detect backlight. Using default value of $MAX_BRIGHTNESS."
 fi
 
-ACTUAL_HOME=$(eval echo ~$USER)
+ACTUAL_HOME=$(getent passwd "$USER" | cut -d: -f6)
 print_ok "Home directory: $ACTUAL_HOME"
 
 # ─────────────────────────────────────────────
@@ -403,7 +416,6 @@ install_pkg "blueman" "Blueman (Bluetooth manager)"
 install_pkg "fastfetch" "fastfetch (system info)"
 install_pkg "sane-utils" "SANE (scanner support)"
 install_pkg "simple-scan" "Simple Scan (scanning app)"
-install_pkg "xfce4-clipman-plugin" "Clipman (clipboard manager)"
 install_pkg "xfce4-pulseaudio-plugin" "PulseAudio volume plugin"
 install_pkg "libreoffice" "LibreOffice (office suite)"
 install_pkg "mtpaint" "mtPaint (simple image editor)"
@@ -552,7 +564,7 @@ else
 fi
 
 # FaceTime HD firmware — idempotent build
-if ls /lib/firmware/facetimehd/* &>/dev/null; then
+if compgen -G "/lib/firmware/facetimehd/*" >/dev/null; then
     print_skip "FaceTime HD firmware"
     SKIPPED+=("FaceTime HD firmware")
 else
@@ -588,7 +600,7 @@ else
         rm -rf facetimehd
         git clone https://github.com/patjak/facetimehd.git
         cd facetimehd
-        FTHD_VERSION=$(grep "^PACKAGE_VERSION" dkms.conf | cut -d= -f2)
+        FTHD_VERSION=$(grep "^PACKAGE_VERSION" dkms.conf | cut -d= -f2 | tr -d '"')
         sudo rm -rf "/usr/src/facetimehd-$FTHD_VERSION"
         sudo cp -r /tmp/facetimehd "/usr/src/facetimehd-$FTHD_VERSION"
         sudo dkms add -m facetimehd -v "$FTHD_VERSION" || true
@@ -828,7 +840,7 @@ print_ok "Keyboard shortcuts cheat sheet saved to Desktop"
 # PANEL SETUP
 # ─────────────────────────────────────────────
 print_header "Panel Setup"
-echo -e "  ${CYAN}Scheduling battery and WiFi panel icons for first login.${NC}\n"
+echo -e "  ${CYAN}Scheduling a clean panel layout for first login.${NC}\n"
 
 PANEL_SETUP_SCRIPT="$ACTUAL_HOME/.local/bin/setup-panel-once.sh"
 PANEL_MARKER="$ACTUAL_HOME/.local/share/panel-configured"
@@ -839,7 +851,7 @@ mkdir -p "$ACTUAL_HOME/.local/share"
 
 cat > "$PANEL_SETUP_SCRIPT" << 'PANEL_SCRIPT'
 #!/bin/bash
-# One-shot: adds battery plugin and starts nm-applet on first XFCE login.
+# One-shot: builds a clean panel layout on first XFCE login.
 MARKER="$HOME/.local/share/panel-configured"
 [ -f "$MARKER" ] && exit 0
 
@@ -850,39 +862,65 @@ for i in $(seq 1 15); do
 done
 pgrep -x xfce4-panel > /dev/null || exit 1
 
-add_panel_plugin() {
-    local plugin_name=$1
-    local PANEL_XML="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
-    grep -q "value=\"$plugin_name\"" "$PANEL_XML" 2>/dev/null && return 1
-
-    local MAX_ID
-    MAX_ID=$(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null \
-             | grep -oE '[0-9]+' | sort -n | tail -1)
-    MAX_ID=${MAX_ID:-30}
-    local NEW_ID=$((MAX_ID + 1))
-
-    xfconf-query -c xfce4-panel -p /plugins/plugin-$NEW_ID --create -t string -s "$plugin_name"
-
-    local ARGS=()
-    while IFS= read -r id; do
-        ARGS+=(-t int -s "$id")
-    done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -oE '[0-9]+')
-    ARGS+=(-t int -s "$NEW_ID")
-    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --force-array "${ARGS[@]}"
-    return 0
-}
-
-PANEL_CHANGED=false
-add_panel_plugin "battery"   && PANEL_CHANGED=true
-add_panel_plugin "pulseaudio" && PANEL_CHANGED=true
-
-if [ "$PANEL_CHANGED" = "true" ]; then
-    xfce4-panel --restart &
-    sleep 2
+# Use docklike (icon-only window buttons) if installed, otherwise tasklist
+if dpkg -s xfce4-docklike-plugin &>/dev/null; then
+    WIN="docklike"
+else
+    WIN="tasklist"
 fi
+
+# Clear all existing plugin entries
+while IFS= read -r id; do
+    xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" -r -R 2>/dev/null || true
+done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -oE '^[0-9]+$')
+
+# Register plugins
+#  1 — app menu
+xfconf-query -c xfce4-panel -p /plugins/plugin-1 --create -t string -s "applicationsmenu"
+
+#  2 — thin separator
+xfconf-query -c xfce4-panel -p /plugins/plugin-2        --create -t string -s "separator"
+xfconf-query -c xfce4-panel -p /plugins/plugin-2/style  --create -t uint   -s 0
+xfconf-query -c xfce4-panel -p /plugins/plugin-2/expand --create -t bool   -s false
+
+#  3 — open window icons
+xfconf-query -c xfce4-panel -p /plugins/plugin-3 --create -t string -s "$WIN"
+
+#  4 — expanding spacer (pushes right-side items to the right)
+xfconf-query -c xfce4-panel -p /plugins/plugin-4        --create -t string -s "separator"
+xfconf-query -c xfce4-panel -p /plugins/plugin-4/style  --create -t uint   -s 0
+xfconf-query -c xfce4-panel -p /plugins/plugin-4/expand --create -t bool   -s true
+
+#  5 — system tray (nm-applet WiFi icon lives here)
+xfconf-query -c xfce4-panel -p /plugins/plugin-5 --create -t string -s "systray"
+
+#  6 — volume
+xfconf-query -c xfce4-panel -p /plugins/plugin-6 --create -t string -s "pulseaudio"
+
+#  7 — battery
+xfconf-query -c xfce4-panel -p /plugins/plugin-7 --create -t string -s "battery"
+
+#  8 — clock
+xfconf-query -c xfce4-panel -p /plugins/plugin-8                --create -t string -s "clock"
+xfconf-query -c xfce4-panel -p /plugins/plugin-8/digital-format --create -t string -s "%Y-%m-%d  %H:%M"
+
+# Set panel order
+xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids \
+    --force-array \
+    -t int -s 1 \
+    -t int -s 2 \
+    -t int -s 3 \
+    -t int -s 4 \
+    -t int -s 5 \
+    -t int -s 6 \
+    -t int -s 7 \
+    -t int -s 8
 
 # Ensure nm-applet is running (WiFi tray icon)
 pgrep -x nm-applet > /dev/null || nm-applet &
+
+xfce4-panel --restart &
+sleep 2
 
 touch "$MARKER"
 rm -f "$HOME/.config/autostart/setup-panel-once.desktop"
@@ -901,9 +939,9 @@ X-GNOME-Autostart-enabled=true
 PANEL_DESKTOP
 
 if [ -f "$PANEL_MARKER" ]; then
-    print_skip "Panel plugins already configured"
+    print_skip "Panel already configured"
 else
-    print_ok "Panel setup scheduled — battery and WiFi icons will appear on first login"
+    print_ok "Panel setup scheduled — clean layout will apply on first login"
 fi
 
 # ─────────────────────────────────────────────
@@ -939,7 +977,7 @@ echo -e "\n${CYAN}  Full log saved to: $LOG_FILE${NC}"
 echo -e "\n${BLUE}${BOLD}══════════════════════════════════════════${NC}"
 echo -e "${BLUE}${BOLD}  All done! Just reboot when ready.${NC}"
 echo -e "${BLUE}${BOLD}══════════════════════════════════════════${NC}\n"
-echo -e "  ${CYAN}Battery and WiFi icons will appear in your taskbar automatically on first login.${NC}"
+echo -e "  ${CYAN}A clean panel (app menu, window icons, WiFi, volume, battery, clock) will appear on first login.${NC}"
 echo -e "  ${CYAN}Your saved WiFi password will be picked up automatically.${NC}"
 echo -e "  ${CYAN}All your desktop shortcuts are ready on the Desktop.${NC}\n"
 
