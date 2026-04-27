@@ -151,6 +151,24 @@ if [[ "$MODE" == "3" ]]; then
     rm -f "$XFCONF_DIR/xfce4-desktop.xml"
     rm -f "$XFCONF_DIR/xfce4-panel.xml"
 
+    # Deleting xfce4-panel.xml wipes the battery and volume panel plugins that
+    # setup.sh added. Reset the marker and restore the autostart entry so they
+    # get re-added automatically on next login.
+    PANEL_SETUP_SCRIPT="$HOME/.local/bin/setup-panel-once.sh"
+    if [ -f "$PANEL_SETUP_SCRIPT" ]; then
+        rm -f "$HOME/.local/share/panel-configured"
+        mkdir -p "$HOME/.config/autostart"
+        cat > "$HOME/.config/autostart/setup-panel-once.desktop" << PANEL_DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Panel Setup (once)
+Exec=$PANEL_SETUP_SCRIPT
+Hidden=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+PANEL_DESKTOP
+    fi
+
     # Place curated shortcuts on the desktop
     xfconf-query -c xfce4-desktop -p /desktop-icons/style --create -t int -s 2
     place_desktop_icons
@@ -235,11 +253,26 @@ xfconf-query -c xfwm4 -p /general/theme -s "WhiteSur-Dark"
 xfconf-query -c xfwm4 -p /general/button_layout -s "CMH|L"
 
 # Add docklike plugin to panel 1 only if not already added
-PLUGIN_ID=16
-if ! xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -q "\b16\b"; then
-    xfconf-query -c xfce4-panel -p /plugins/plugin-${PLUGIN_ID} --create -t string -s "docklike"
-    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids \
-        -s "$(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids) ${PLUGIN_ID}" 2>/dev/null || true
+PANEL_XML="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+if ! grep -q 'value="docklike"' "$PANEL_XML" 2>/dev/null; then
+    MAX_ID=$(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null \
+             | grep -oE '[0-9]+' | sort -n | tail -1)
+    MAX_ID=${MAX_ID:-30}
+    DOCKLIKE_ID=$((MAX_ID + 1))
+    xfconf-query -c xfce4-panel -p /plugins/plugin-$DOCKLIKE_ID --create -t string -s "docklike"
+    ARGS=()
+    while IFS= read -r id; do
+        ARGS+=(-t int -s "$id")
+    done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -oE '[0-9]+')
+    ARGS+=(-t int -s "$DOCKLIKE_ID")
+    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --force-array "${ARGS[@]}"
+fi
+
+# Remove panel 2 (default bottom taskbar) — competes with Plank
+if xfconf-query -c xfce4-panel -p /panels 2>/dev/null | grep -q "^2$"; then
+    xfconf-query -c xfce4-panel -p /panels --force-array -t int -s 1
+    xfconf-query -c xfce4-panel -p /panels/panel-2 -r -R 2>/dev/null || true
+    xfce4-panel --restart 2>/dev/null || true
 fi
 
 # Wallpaper — auto-detect monitor name, apply solid near-black

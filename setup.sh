@@ -357,7 +357,7 @@ print_ok "Printing service enabled"
 # VISUAL STUDIO CODE
 # ─────────────────────────────────────────────
 print_header "Visual Studio Code"
-echo -e "  ${CYAN}Installing VS Code from Microsoft's,  official apt repository.${NC}\n"
+echo -e "  ${CYAN}Installing VS Code from Microsoft's official apt repository.${NC}\n"
 
 install_pkgs "VS Code prerequisites" wget gpg apt-transport-https
 
@@ -404,6 +404,7 @@ install_pkg "fastfetch" "fastfetch (system info)"
 install_pkg "sane-utils" "SANE (scanner support)"
 install_pkg "simple-scan" "Simple Scan (scanning app)"
 install_pkg "xfce4-clipman-plugin" "Clipman (clipboard manager)"
+install_pkg "xfce4-pulseaudio-plugin" "PulseAudio volume plugin"
 install_pkg "libreoffice" "LibreOffice (office suite)"
 install_pkg "mtpaint" "mtPaint (simple image editor)"
 install_pkg "gdebi" "gdebi (package installer)"
@@ -824,6 +825,88 @@ SHORTCUTS
 print_ok "Keyboard shortcuts cheat sheet saved to Desktop"
 
 # ─────────────────────────────────────────────
+# PANEL SETUP
+# ─────────────────────────────────────────────
+print_header "Panel Setup"
+echo -e "  ${CYAN}Scheduling battery and WiFi panel icons for first login.${NC}\n"
+
+PANEL_SETUP_SCRIPT="$ACTUAL_HOME/.local/bin/setup-panel-once.sh"
+PANEL_MARKER="$ACTUAL_HOME/.local/share/panel-configured"
+
+mkdir -p "$ACTUAL_HOME/.local/bin"
+mkdir -p "$ACTUAL_HOME/.config/autostart"
+mkdir -p "$ACTUAL_HOME/.local/share"
+
+cat > "$PANEL_SETUP_SCRIPT" << 'PANEL_SCRIPT'
+#!/bin/bash
+# One-shot: adds battery plugin and starts nm-applet on first XFCE login.
+MARKER="$HOME/.local/share/panel-configured"
+[ -f "$MARKER" ] && exit 0
+
+# Wait up to 15 seconds for xfce4-panel to be running
+for i in $(seq 1 15); do
+    pgrep -x xfce4-panel > /dev/null && break
+    sleep 1
+done
+pgrep -x xfce4-panel > /dev/null || exit 1
+
+add_panel_plugin() {
+    local plugin_name=$1
+    local PANEL_XML="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+    grep -q "value=\"$plugin_name\"" "$PANEL_XML" 2>/dev/null && return 1
+
+    local MAX_ID
+    MAX_ID=$(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null \
+             | grep -oE '[0-9]+' | sort -n | tail -1)
+    MAX_ID=${MAX_ID:-30}
+    local NEW_ID=$((MAX_ID + 1))
+
+    xfconf-query -c xfce4-panel -p /plugins/plugin-$NEW_ID --create -t string -s "$plugin_name"
+
+    local ARGS=()
+    while IFS= read -r id; do
+        ARGS+=(-t int -s "$id")
+    done < <(xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null | grep -oE '[0-9]+')
+    ARGS+=(-t int -s "$NEW_ID")
+    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --force-array "${ARGS[@]}"
+    return 0
+}
+
+PANEL_CHANGED=false
+add_panel_plugin "battery"   && PANEL_CHANGED=true
+add_panel_plugin "pulseaudio" && PANEL_CHANGED=true
+
+if [ "$PANEL_CHANGED" = "true" ]; then
+    xfce4-panel --restart &
+    sleep 2
+fi
+
+# Ensure nm-applet is running (WiFi tray icon)
+pgrep -x nm-applet > /dev/null || nm-applet &
+
+touch "$MARKER"
+rm -f "$HOME/.config/autostart/setup-panel-once.desktop"
+PANEL_SCRIPT
+
+chmod +x "$PANEL_SETUP_SCRIPT"
+
+cat > "$ACTUAL_HOME/.config/autostart/setup-panel-once.desktop" << PANEL_DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Panel Setup (once)
+Exec=$PANEL_SETUP_SCRIPT
+Hidden=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+PANEL_DESKTOP
+
+if [ -f "$PANEL_MARKER" ]; then
+    print_skip "Panel plugins already configured"
+else
+    print_ok "Panel setup scheduled — battery and WiFi icons will appear on first login"
+fi
+
+# ─────────────────────────────────────────────
 # SUMMARY
 # ─────────────────────────────────────────────
 print_header "Installation Summary"
@@ -854,12 +937,9 @@ echo -e "\n${CYAN}  Full log saved to: $LOG_FILE${NC}"
 # NEXT STEPS
 # ─────────────────────────────────────────────
 echo -e "\n${BLUE}${BOLD}══════════════════════════════════════════${NC}"
-echo -e "${BLUE}${BOLD}  Almost done! Two quick steps after reboot:${NC}"
+echo -e "${BLUE}${BOLD}  All done! Just reboot when ready.${NC}"
 echo -e "${BLUE}${BOLD}══════════════════════════════════════════${NC}\n"
-echo -e "  ${BOLD}1. Add the WiFi icon to your taskbar:${NC}"
-echo -e "     Right-click taskbar → Panel → Add New Items → Network Manager\n"
-echo -e "  ${BOLD}2. Add the battery indicator to your taskbar:${NC}"
-echo -e "     Right-click taskbar → Panel → Add New Items → Battery Monitor\n"
+echo -e "  ${CYAN}Battery and WiFi icons will appear in your taskbar automatically on first login.${NC}"
 echo -e "  ${CYAN}Your saved WiFi password will be picked up automatically.${NC}"
 echo -e "  ${CYAN}All your desktop shortcuts are ready on the Desktop.${NC}\n"
 
