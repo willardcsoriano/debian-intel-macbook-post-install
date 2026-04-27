@@ -249,7 +249,7 @@ different mode or choose Revert.
 
 ## Verified Test Environment
 
-| | |
+| Component | Details |
 |---|---|
 | **Machine** | Apple MacBookAir7,2 (Mid-2015, 13-inch) |
 | **OS** | Debian GNU/Linux 13 (Trixie) 13.4 |
