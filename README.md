@@ -1,10 +1,12 @@
 # Debian Linux Post-Installation Setup for Intel MacBooks
 
-A single-command post-installation setup script for Intel MacBooks running
-Debian GNU/Linux 13 (Trixie). This picks up exactly where the Broadcom
-offline repo leaves off — WiFi is working, you have a terminal, and now
-it is time to turn this machine into something you can actually use every
-day.
+A post-installation setup script for Intel MacBooks running Debian GNU/Linux
+13 (Trixie). This picks up exactly where the Broadcom offline repo leaves
+off — WiFi is working, you have a terminal, and now it is time to turn this
+machine into something you can actually use every day.
+
+An optional theming script is also available to give XFCE a macOS-style
+look and feel.
 
 ---
 
@@ -215,12 +217,32 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.3.0/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.4.0/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
 
 When finished it will tell you whether a reboot is required and prompt you.
+
+---
+
+## Theming (optional)
+
+Vanilla XFCE is functional but plain. If you want a macOS-style look — the
+WhiteSur dark GTK theme, macOS-style window controls on the left, and a
+Plank dock at the bottom — run this after the setup script completes and
+you have rebooted into the desktop:
+
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.4.0/themes.sh)
+
+You will be prompted to choose a mode:
+
+- **Classic** — desktop icons visible, Plank shows open apps only
+- **Dock** — clean empty desktop, all apps pinned in Plank
+- **Revert** — removes all themes and restores vanilla XFCE
+
+If you change your mind later, just run the script again and pick a
+different mode or choose Revert.
 
 ---
 
@@ -274,6 +296,7 @@ https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
 
 ## Version History
 
+- **v1.4.0** — Add optional theming script (WhiteSur dark theme, Plank dock, macOS-style layout)
 - **v1.3.0** — Add VS Code, poppler-utils, and speech-dispatcher; drop rhythmbox
 - **v1.2.0** — Harden Broadcom WiFi rebuild chain, add swap warning, refactor for readability
 - **v1.1.0** — Add gdebi package installer utility
