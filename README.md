@@ -103,6 +103,7 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 - fastfetch — system info tool. Run with: fastfetch
 - sane-utils + simple-scan — scanner support for USB and all-in-one printers
 - xfce4-clipman-plugin — clipboard history manager
+- xfce4-pulseaudio-plugin — volume control in taskbar with scroll-wheel adjustment
 - libreoffice — full office suite (Writer, Calc, Impress). Large download ~300MB.
 - mtpaint — simple image editor similar to Microsoft Paint
 - gdebi — GUI installer for standalone .deb packages
@@ -217,7 +218,7 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.4.0/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.5.0/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
@@ -233,7 +234,7 @@ WhiteSur dark GTK theme, macOS-style window controls on the left, and a
 Plank dock at the bottom — run this after the setup script completes and
 you have rebooted into the desktop:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.4.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.5.0/themes.sh)
 
 You will be prompted to choose a mode:
 
@@ -243,21 +244,6 @@ You will be prompted to choose a mode:
 
 If you change your mind later, just run the script again and pick a
 different mode or choose Revert.
-
----
-
-## After Reboot
-
-Two things need to be added to your taskbar manually after the first boot
-into XFCE:
-
-### Add WiFi icon to taskbar
-Right-click taskbar → Panel → Add New Items → Network Manager → Add
-
-### Add battery indicator to taskbar
-Right-click taskbar → Panel → Add New Items → Battery Monitor → Add
-
-These are one-time steps. After this everything is automatic.
 
 ---
 
@@ -296,6 +282,7 @@ https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
 
 ## Version History
 
+- **v1.5.0** — Automate panel setup (battery, volume, WiFi icons added on first login — no manual steps); fix themes.sh plugin ID collision
 - **v1.4.0** — Add optional theming script (WhiteSur dark theme, Plank dock, macOS-style layout)
 - **v1.3.0** — Add VS Code, poppler-utils, and speech-dispatcher; drop rhythmbox
 - **v1.2.0** — Harden Broadcom WiFi rebuild chain, add swap warning, refactor for readability
