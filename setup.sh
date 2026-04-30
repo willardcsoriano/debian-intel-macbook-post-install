@@ -322,7 +322,7 @@ else
 fi
 
 # Swap check — 8GB RAM with no swap will hard freeze on OOM with no warning
-if ! swapon --show | grep -q .; then
+if ! /usr/sbin/swapon --show 2>/dev/null | grep -q .; then
     print_warning "No swap detected — consider adding a swapfile to prevent out-of-memory freezes"
 fi
 
@@ -398,6 +398,11 @@ if [ ! -f "$VSCODE_LIST" ]; then
     sudo apt update -y >>"$LOG_FILE" 2>&1
     print_ok "VS Code repository added"
 else
+    # VS Code's own updater can auto-create vscode.sources pointing to a different keyring,
+    # which conflicts with our vscode.list and breaks all apt commands.
+    if [ -f "/etc/apt/sources.list.d/vscode.sources" ]; then
+        sudo rm /etc/apt/sources.list.d/vscode.sources >>"$LOG_FILE" 2>&1
+    fi
     print_skip "VS Code repository"
 fi
 
