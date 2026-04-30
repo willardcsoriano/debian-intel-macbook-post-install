@@ -594,7 +594,7 @@ else
 fi
 
 # FaceTime HD kernel module — idempotent DKMS build
-if sudo dkms status 2>/dev/null | grep -q "facetimehd.*installed"; then
+if find /lib/modules/$(uname -r) -name "facetimehd.ko*" 2>/dev/null | grep -q .; then
     print_skip "FaceTime HD webcam driver"
     SKIPPED+=("FaceTime HD webcam driver")
 else
@@ -611,6 +611,7 @@ else
         sudo dkms add -m facetimehd -v "$FTHD_VERSION" || true
         sudo dkms build -m facetimehd -v "$FTHD_VERSION"
         sudo dkms install -m facetimehd -v "$FTHD_VERSION"
+        sudo depmod -a
         cd /tmp
         rm -rf facetimehd
     ) >>"$LOG_FILE" 2>&1; then
