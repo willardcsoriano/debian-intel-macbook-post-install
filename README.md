@@ -218,7 +218,7 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.6.2/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.6.3/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
@@ -234,7 +234,7 @@ WhiteSur dark GTK theme, macOS-style window controls on the left, and a
 Plank dock at the bottom — run this after the setup script completes and
 you have rebooted into the desktop:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.6.2/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.6.3/themes.sh)
 
 You will be prompted to choose a mode:
 
@@ -282,6 +282,7 @@ https://github.com/willardcsoriano/debian-trixie-intel-macbook-broadcom-offline
 
 ## Version History
 
+- **v1.6.3** — Align window title to the left for macOS style in themes.sh
 - **v1.6.2** — Fix FaceTime HD webcam driver re-installing on every run; replace unreliable modinfo check with direct find on module path
 - **v1.6.1** — Fix conflicting VS Code apt sources (vscode.sources vs vscode.list breaks all apt installs); use full path for swapon
 - **v1.6.0** — Harden themes.sh: fix plugin ID collision, unconditional panel restart after plugin changes, --force-array for wallpaper rgba1, poll-based plank seed replacing fixed sleep, explicit Sort= ordering for dock items, Mode 3 confirmation prompt, curl-based connectivity check, dual metadata::trusted+checksum for XFCE compat; harden setup.sh connectivity check
