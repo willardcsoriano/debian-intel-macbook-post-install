@@ -274,6 +274,9 @@ xfconf-query -c xfwm4 -p /general/theme -s "WhiteSur-Dark"
 # Move window buttons to the left (macOS style: close, minimize, maximize)
 xfconf-query -c xfwm4 -p /general/button_layout -s "CMH|L"
 
+# Align window title to the left (macOS style)
+xfconf-query -c xfwm4 -p /general/title_alignment -s "left"
+
 # Add docklike plugin to panel 1 only if not already added.
 # Find the highest existing plugin ID across the entire panel config (not just
 # panel-1's plugin-ids) so we never collide with a plugin defined elsewhere.
