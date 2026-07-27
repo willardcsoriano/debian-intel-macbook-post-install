@@ -179,6 +179,8 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
 ### Code Editor
 - code (Visual Studio Code) — installed from Microsoft's official apt
   repository so it stays current via normal apt updates
+- tomoki1207.pdf extension + libgtk-3-0t64 — renders PDFs natively inside
+  VS Code tabs
 
 ### Media and Utilities
 - flameshot — screenshot tool with annotation support. Shortcut: Ctrl+Alt+S
