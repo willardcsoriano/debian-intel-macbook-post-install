@@ -45,6 +45,7 @@ Apple Silicon Macs are not supported; use the Asahi Linux project instead.
   - [2. Set up sudo for your user](#2-set-up-sudo-for-your-user)
 - [Installation](#installation)
 - [Theming (optional)](#theming-optional)
+- [Microsoft Teams (optional)](#microsoft-teams-optional)
 - [Verified Test Environment](#verified-test-environment)
 - [Known Limitations](#known-limitations)
 - [Related](#related)
@@ -64,6 +65,10 @@ Apple Silicon Macs are not supported; use the Asahi Linux project instead.
 **Theming script** (optional, run after first reboot):
 
     bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.7.7/themes.sh)
+
+**Microsoft Teams script** (optional, for users who need Teams):
+
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/teams.sh)
 
 ---
 
@@ -355,6 +360,18 @@ different mode or choose Revert.
 
 ---
 
+## Microsoft Teams (optional)
+
+If you need Teams, run this any time after setup completes:
+
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/teams.sh)
+
+This installs [`teams-for-linux`](https://github.com/IsmaelMartinez/teams-for-linux), the unofficial Electron client, since Microsoft ships no native Debian package. It adds its own apt repository (`repo.teamsforlinux.de`) so it stays current via normal apt updates, and creates a Desktop shortcut. Safe to skip if you don't use Teams.
+
+If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the client. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
+
+---
+
 ## Verified Test Environment
 
 | Component | Details |
@@ -394,6 +411,7 @@ https://github.com/willardcsoriano/dotfiles
 
 ## Version History
 
+- **v1.8.0** — Add optional `teams.sh` (unofficial `teams-for-linux` client, installed from its own apt repository) as a standalone opt-in script, kept out of `setup.sh` since not everyone needs Teams; add the `tomoki1207.pdf` VS Code extension to `setup.sh` for native PDF viewing
 - **v1.7.7** — Remove the Google Antigravity CLI (`agy`) install: it was personal tooling rather than MacBook/Debian enablement, and dropping it also removes a third-party `curl | bash` installer from the run
 - **v1.7.6** — Add the Google Antigravity CLI (`agy`), installed user-space via the official upstream installer (no root, checksum-verified, idempotent); render the optional system upgrade as its own three-state **System status** line (fully up to date / upgraded / declined) instead of a mislabeled package skip, warning with a catch-up command when pending updates are declined
 - **v1.7.5** — Fix the contradictory closing message (the final banner no longer says "just reboot when ready" on a run that also reports "no reboot needed"); skip the optional system-upgrade prompt entirely when every package is already current, instead of always asking then doing nothing
