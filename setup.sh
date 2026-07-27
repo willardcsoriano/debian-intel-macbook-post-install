@@ -505,51 +505,6 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# MICROSOFT TEAMS
-# ─────────────────────────────────────────────
-print_header "Microsoft Teams"
-echo -e "  ${CYAN}Installing the unofficial teams-for-linux client — Microsoft ships no native Debian package.${NC}\n"
-
-TEAMS_KEYRING="/etc/apt/keyrings/teams-for-linux.asc"
-TEAMS_SOURCE="/etc/apt/sources.list.d/teams-for-linux-packages.sources"
-
-if [ ! -f "$TEAMS_KEYRING" ]; then
-    print_info "Adding teams-for-linux signing key..."
-    sudo mkdir -p /etc/apt/keyrings
-    if sudo wget -qO "$TEAMS_KEYRING" https://repo.teamsforlinux.de/teams-for-linux.asc; then
-        print_ok "teams-for-linux signing key added"
-    else
-        print_fail "teams-for-linux signing key"
-        FAILED+=("teams-for-linux signing key")
-    fi
-else
-    print_skip "teams-for-linux signing key"
-fi
-
-if [ ! -f "$TEAMS_SOURCE" ]; then
-    print_info "Adding teams-for-linux apt repository..."
-    TEAMS_ARCH=$(dpkg --print-architecture)
-    sudo tee "$TEAMS_SOURCE" > /dev/null << EOF
-Types: deb
-URIs: https://repo.teamsforlinux.de/debian/
-Suites: stable
-Components: main
-Signed-By: $TEAMS_KEYRING
-Architectures: $TEAMS_ARCH
-EOF
-    sudo apt update -y >>"$LOG_FILE" 2>&1
-    print_ok "teams-for-linux repository added"
-else
-    print_skip "teams-for-linux repository"
-fi
-
-install_pkg "teams-for-linux" "Microsoft Teams (unofficial client)"
-
-# Entra ID Smart Lockout can block first sign-in after repeated failed attempts.
-# It is server-side and unrelated to this install — see README for details.
-print_info "If sign-in shows \"account is temporarily locked\", that's Microsoft Entra ID Smart Lockout, not a problem with this install — see README."
-
-# ─────────────────────────────────────────────
 # MEDIA AND UTILITIES
 # ─────────────────────────────────────────────
 print_header "Media and Utilities"
@@ -952,7 +907,6 @@ create_shortcut "LibreOffice Calc" "libreoffice --calc" "libreoffice-calc"
 create_shortcut "LibreOffice Impress" "libreoffice --impress" "libreoffice-impress"
 create_shortcut "Image Editor" "mtpaint" "applications-graphics"
 create_shortcut "VS Code" "code" "code"
-create_shortcut "Microsoft Teams" "teams-for-linux" "teams-for-linux"
 
 cat > "$ACTUAL_HOME/Desktop/KEYBOARD SHORTCUTS.txt" << 'SHORTCUTS'
 ═══════════════════════════════════════════════════════
