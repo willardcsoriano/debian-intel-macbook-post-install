@@ -487,6 +487,22 @@ fi
 
 install_pkg "code" "Visual Studio Code"
 
+install_pkg "libgtk-3-0t64" "GTK3 library (VS Code PDF viewer)"
+
+# VS Code PDF viewer — renders PDFs natively inside VS Code tabs
+if command -v code &>/dev/null && ! code --list-extensions 2>/dev/null | grep -q "tomoki1207.pdf"; then
+    print_info "Installing VS Code PDF extension..."
+    if code --install-extension tomoki1207.pdf --force >>"$LOG_FILE" 2>&1; then
+        print_ok "VS Code PDF extension installed"
+        INSTALLED+=("VS Code PDF extension")
+    else
+        print_fail "VS Code PDF extension"
+        FAILED+=("VS Code PDF extension")
+    fi
+else
+    print_skip "VS Code PDF extension"
+    SKIPPED+=("VS Code PDF extension")
+fi
 
 # ─────────────────────────────────────────────
 # MEDIA AND UTILITIES
