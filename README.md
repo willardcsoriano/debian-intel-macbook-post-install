@@ -29,6 +29,7 @@ Apple Silicon Macs are not supported; use the Asahi Linux project instead.
   - [Terminal](#terminal)
   - [Browser and Core Apps](#browser-and-core-apps)
   - [Code Editor](#code-editor)
+  - [Microsoft Teams](#microsoft-teams)
   - [Media and Utilities](#media-and-utilities)
   - [WiFi Management](#wifi-management)
   - [MacBook Keyboard Fixes](#macbook-keyboard-fixes)
@@ -181,6 +182,17 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   repository so it stays current via normal apt updates
 - tomoki1207.pdf extension + libgtk-3-0t64 — renders PDFs natively inside
   VS Code tabs
+
+### Microsoft Teams
+- teams-for-linux — unofficial Electron client, installed from its own apt
+  repository (`repo.teamsforlinux.de`) since Microsoft ships no native
+  Debian package
+- If first sign-in shows "Your account is temporarily locked to prevent
+  unauthorized use", that's Microsoft Entra ID's Smart Lockout — a
+  server-side account protection triggered by repeated failed sign-in
+  attempts, unrelated to this install or the client. It clears itself
+  after a short cooldown; if it persists, it's a Conditional Access block
+  or disabled account that only your org's admin can lift.
 
 ### Media and Utilities
 - flameshot — screenshot tool with annotation support. Shortcut: Ctrl+Alt+S
