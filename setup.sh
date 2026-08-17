@@ -852,6 +852,38 @@ polkit.addRule(function(action, subject) {
 EOF
 print_ok "Hibernate restricted to system-level control only"
 
+# keyboard backlight (SMC-controlled peripheral layer)
+# The keyboard backlight is driven by applesmc on a separate power rail from
+# the display panel (intel_backlight). s2idle -- forced above because deep/S3
+# never resumes on this hardware -- keeps far more of the system powered than
+# a real S3 sleep would have, and this LED is one of the things that stays lit
+# as a result: nothing tells it to turn off. Install a sleep hook that forces
+# it to 0 before suspend and restores whatever level was set beforehand, on
+# resume.
+print_info "Installing keyboard backlight suspend hook..."
+sudo mkdir -p /etc/systemd/system-sleep
+sudo tee /etc/systemd/system-sleep/kbd-backlight-suspend > /dev/null << 'EOF'
+#!/bin/sh
+# Force the SMC keyboard backlight off before suspend and restore it after.
+# s2idle (see setup.sh) does not power this LED down on its own, so without
+# this it stays lit for the entire time the lid is closed.
+LED=/sys/class/leds/smc::kbd_backlight/brightness
+STATE=/run/kbd-backlight-suspend.state
+[ -e "$LED" ] || exit 0
+case "$1" in
+    pre)
+        cat "$LED" > "$STATE" 2>/dev/null
+        echo 0 > "$LED"
+        ;;
+    post)
+        [ -f "$STATE" ] && cat "$STATE" > "$LED" 2>/dev/null
+        rm -f "$STATE"
+        ;;
+esac
+EOF
+sudo chmod +x /etc/systemd/system-sleep/kbd-backlight-suspend
+print_ok "Keyboard backlight will turn off during suspend and restore on resume"
+
 # sleep.conf is re-read by systemd-logind on demand, so no restart needed.
 # (Restarting systemd-logind can terminate the active user session.)
 print_ok "Power management changes will take effect after reboot"
