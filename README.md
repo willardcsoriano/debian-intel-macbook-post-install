@@ -213,6 +213,8 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
 - sane-utils + simple-scan — scanner support for USB and all-in-one printers
 - xfce4-clipman-plugin — clipboard history manager
 - xfce4-pulseaudio-plugin — volume control in taskbar with scroll-wheel adjustment
+- playerctl — MPRIS media-control backend the F7/F8/F9 previous/play-pause/next
+  keys need to actually control whatever's playing, rather than doing nothing
 - libreoffice — full office suite (Writer, Calc, Impress). Large download ~300MB.
 - mtpaint — simple image editor similar to Microsoft Paint
 - gdebi — GUI installer for standalone .deb packages
