@@ -320,6 +320,68 @@ sudo apt update -y >>"$LOG_FILE" 2>&1
 print_ok "Package list is up to date"
 
 # ─────────────────────────────────────────────
+# PRE-CHANGE SAFETY SNAPSHOT
+# ─────────────────────────────────────────────
+# Runs before anything below touches the system (GRUB, kernel params, logind,
+# polkit, NetworkManager, the whole network stack). This script is aimed at
+# people with no way to self-rescue if a step goes wrong on their specific
+# hardware — a free undo button matters more here than it would for someone
+# comfortable debugging a broken boot. Always runs, no prompt: a snapshot
+# that only exists for users who knew to ask for one defeats the point.
+print_header "Pre-Change Safety Snapshot"
+echo -e "  ${CYAN}Creating a system snapshot before changing anything, so this run can be undone.${NC}\n"
+
+install_pkg "timeshift" "Timeshift (system snapshot tool)"
+
+TIMESHIFT_CONF="/etc/timeshift/timeshift.json"
+if [ ! -f "$TIMESHIFT_CONF" ]; then
+    print_info "Configuring Timeshift (RSYNC mode, on-demand snapshots only — no recurring schedule)..."
+    ROOT_UUID=$(findmnt -n -o UUID / 2>/dev/null)
+    if [ -n "$ROOT_UUID" ]; then
+        sudo mkdir -p /etc/timeshift
+        sudo tee "$TIMESHIFT_CONF" > /dev/null << EOF
+{
+  "backup_device_uuid" : "$ROOT_UUID",
+  "parent_device_uuid" : "",
+  "do_first_run" : "false",
+  "btrfs_mode" : "false",
+  "include_btrfs_home_for_backup" : "false",
+  "include_btrfs_home_for_restore" : "false",
+  "stop_cron_emails" : "true",
+  "schedule_monthly" : "false",
+  "schedule_weekly" : "false",
+  "schedule_daily" : "false",
+  "schedule_hourly" : "false",
+  "schedule_boot" : "false",
+  "count_monthly" : "0",
+  "count_weekly" : "0",
+  "count_daily" : "0",
+  "count_hourly" : "0",
+  "count_boot" : "0",
+  "snapshot_size" : "0",
+  "snapshot_count" : "0",
+  "exclude" : [],
+  "exclude-apps" : []
+}
+EOF
+        print_ok "Timeshift configured for on-demand snapshots on this disk"
+    else
+        print_warning "Could not determine root filesystem UUID — skipping automatic snapshot this run"
+    fi
+else
+    print_skip "Timeshift already configured"
+fi
+
+if [ -f "$TIMESHIFT_CONF" ]; then
+    print_info "Creating snapshot (this can take a few minutes on first run)..."
+    if sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" --tags O >>"$LOG_FILE" 2>&1; then
+        print_ok "Snapshot created — undo this entire run with: sudo timeshift --restore"
+    else
+        print_warning "Snapshot creation failed (see $LOG_FILE) — continuing without one. Check free disk space with: df -h /"
+    fi
+fi
+
+# ─────────────────────────────────────────────
 # BROADCOM WIFI HARDENING
 # ─────────────────────────────────────────────
 print_header "Broadcom WiFi Hardening"
@@ -355,9 +417,22 @@ else
     print_skip "wl boot config already set"
 fi
 
-# Swap check — 8GB RAM with no swap will hard freeze on OOM with no warning
-if ! /usr/sbin/swapon --show 2>/dev/null | grep -q .; then
-    print_warning "No swap detected — consider adding a swapfile to prevent out-of-memory freezes"
+# ─────────────────────────────────────────────
+# SWAP / MEMORY SAFETY NET
+# ─────────────────────────────────────────────
+print_header "Swap / Memory Safety Net"
+echo -e "  ${CYAN}8GB RAM with no swap will hard freeze on OOM with no warning — adding compressed RAM swap.${NC}\n"
+
+if /usr/sbin/swapon --show 2>/dev/null | grep -q .; then
+    print_skip "Swap already configured"
+else
+    install_pkg "zram-tools" "zram-tools (compressed RAM swap)"
+    if systemctl list-unit-files zramswap.service &>/dev/null; then
+        sudo systemctl enable --now zramswap.service >>"$LOG_FILE" 2>&1 || true
+        print_ok "Compressed RAM swap active (survives reboot, no disk wear)"
+    else
+        print_warning "zram-tools installed but zramswap.service not found — swap may need a manual check"
+    fi
 fi
 
 # ─────────────────────────────────────────────
@@ -396,6 +471,27 @@ fi
 if systemctl list-unit-files fwupd-refresh.timer &>/dev/null; then
     sudo systemctl enable --now fwupd-refresh.timer >>"$LOG_FILE" 2>&1 || true
     print_ok "Firmware metadata refresh timer enabled"
+fi
+
+# apt-daily-upgrade.service ships with ConditionACPower=true, so it silently
+# skips every firing while running on battery. This is a laptop by definition —
+# for a user who is mostly unplugged, that condition alone can mean security
+# updates never actually run despite everything above being configured
+# correctly. Clear it with a drop-in rather than editing the shipped unit file,
+# so a package update to apt doesn't just overwrite the change.
+ACPOWER_OVERRIDE_DIR="/etc/systemd/system/apt-daily-upgrade.service.d"
+ACPOWER_OVERRIDE_FILE="$ACPOWER_OVERRIDE_DIR/override.conf"
+if [ ! -f "$ACPOWER_OVERRIDE_FILE" ]; then
+    print_info "Allowing daily security updates to run on battery, not just AC power..."
+    sudo mkdir -p "$ACPOWER_OVERRIDE_DIR"
+    sudo tee "$ACPOWER_OVERRIDE_FILE" > /dev/null << 'EOF'
+[Unit]
+ConditionACPower=
+EOF
+    sudo systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
+    print_ok "apt-daily-upgrade.service will now run regardless of power source"
+else
+    print_skip "apt-daily-upgrade.service AC power condition already cleared"
 fi
 
 # AppArmor ships enabled on Debian 13; only warn if it has been disabled
@@ -438,6 +534,7 @@ print_header "Browser and Core Applications"
 echo -e "  ${CYAN}Installing Firefox, a text editor, and printing support.${NC}\n"
 
 install_pkg "firefox-esr" "Firefox web browser"
+install_pkg "chromium" "Chromium web browser"
 install_pkg "gedit" "gedit text editor"
 install_pkg "cups" "CUPS printing system"
 
@@ -518,6 +615,7 @@ install_pkg "fastfetch" "fastfetch (system info)"
 install_pkg "sane-utils" "SANE (scanner support)"
 install_pkg "simple-scan" "Simple Scan (scanning app)"
 install_pkg "xfce4-pulseaudio-plugin" "PulseAudio volume plugin"
+install_pkg "playerctl" "playerctl (media key control backend)"
 install_pkg "libreoffice" "LibreOffice (office suite)"
 install_pkg "mtpaint" "mtPaint (simple image editor)"
 install_pkg "gdebi" "gdebi (package installer)"
@@ -773,6 +871,11 @@ else
     print_skip "Microphone already configured"
 fi
 
+# A reverse-engineered driver is the kind of thing you want to verify works
+# before trusting it in an actual video call. cheese gives an immediate,
+# obvious "yes, the camera and mic work" check without needing Zoom or Teams.
+install_pkg "cheese" "Cheese (webcam test app)"
+
 # ─────────────────────────────────────────────
 # BATTERY AND POWER MANAGEMENT
 # ─────────────────────────────────────────────
@@ -852,6 +955,38 @@ polkit.addRule(function(action, subject) {
 EOF
 print_ok "Hibernate restricted to system-level control only"
 
+# keyboard backlight (SMC-controlled peripheral layer)
+# The keyboard backlight is driven by applesmc on a separate power rail from
+# the display panel (intel_backlight). s2idle -- forced above because deep/S3
+# never resumes on this hardware -- keeps far more of the system powered than
+# a real S3 sleep would have, and this LED is one of the things that stays lit
+# as a result: nothing tells it to turn off. Install a sleep hook that forces
+# it to 0 before suspend and restores whatever level was set beforehand, on
+# resume.
+print_info "Installing keyboard backlight suspend hook..."
+sudo mkdir -p /etc/systemd/system-sleep
+sudo tee /etc/systemd/system-sleep/kbd-backlight-suspend > /dev/null << 'EOF'
+#!/bin/sh
+# Force the SMC keyboard backlight off before suspend and restore it after.
+# s2idle (see setup.sh) does not power this LED down on its own, so without
+# this it stays lit for the entire time the lid is closed.
+LED=/sys/class/leds/smc::kbd_backlight/brightness
+STATE=/run/kbd-backlight-suspend.state
+[ -e "$LED" ] || exit 0
+case "$1" in
+    pre)
+        cat "$LED" > "$STATE" 2>/dev/null
+        echo 0 > "$LED"
+        ;;
+    post)
+        [ -f "$STATE" ] && cat "$STATE" > "$LED" 2>/dev/null
+        rm -f "$STATE"
+        ;;
+esac
+EOF
+sudo chmod +x /etc/systemd/system-sleep/kbd-backlight-suspend
+print_ok "Keyboard backlight will turn off during suspend and restore on resume"
+
 # sleep.conf is re-read by systemd-logind on demand, so no restart needed.
 # (Restarting systemd-logind can terminate the active user session.)
 print_ok "Power management changes will take effect after reboot"
@@ -891,10 +1026,12 @@ DESKTOP_DIR="$ACTUAL_HOME/Desktop"
 mkdir -p "$DESKTOP_DIR"
 
 create_shortcut "Firefox" "firefox-esr" "firefox-esr"
+create_shortcut "Chromium" "chromium" "chromium"
 create_shortcut "Files" "thunar" "file-manager"
 create_shortcut "Terminal" "gnome-terminal" "utilities-terminal"
 create_shortcut "Text Editor" "gedit" "gedit"
 create_shortcut "Simple Scan" "simple-scan" "scanner"
+create_shortcut "Cheese" "cheese" "camera-web"
 create_shortcut "VLC" "vlc" "vlc"
 create_shortcut "Screenshot" "flameshot gui" "flameshot"
 create_shortcut "Bluetooth" "blueman-manager" "bluetooth"
@@ -1244,7 +1381,8 @@ fi
 echo -e "${BLUE}${BOLD}══════════════════════════════════════════${NC}\n"
 echo -e "  ${CYAN}A clean panel (app menu, window icons, WiFi, volume, battery, clock) will appear on first login.${NC}"
 echo -e "  ${CYAN}Your saved WiFi password will be picked up automatically.${NC}"
-echo -e "  ${CYAN}All your desktop shortcuts are ready on the Desktop.${NC}\n"
+echo -e "  ${CYAN}All your desktop shortcuts are ready on the Desktop.${NC}"
+echo -e "  ${CYAN}If anything looks wrong, undo this entire run with: sudo timeshift --restore${NC}\n"
 
 # ─────────────────────────────────────────────
 # REBOOT
