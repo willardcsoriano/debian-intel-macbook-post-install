@@ -273,6 +273,9 @@ means it survives kernel updates without any manual intervention.
 
 - facetimehd — FaceTime HD webcam driver (compiled from source, DKMS managed)
 - Microphone configured for MacBook Air hardware via ALSA
+- cheese — a reverse-engineered driver is worth verifying immediately
+  rather than discovering it's broken mid-call; gives a one-click way to
+  confirm the camera and mic actually work
 
 ### Battery and Power
 - xfce4-battery-plugin — battery level and charging status in taskbar

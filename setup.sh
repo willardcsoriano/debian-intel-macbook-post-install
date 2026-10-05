@@ -808,6 +808,11 @@ else
     print_skip "Microphone already configured"
 fi
 
+# A reverse-engineered driver is the kind of thing you want to verify works
+# before trusting it in an actual video call. cheese gives an immediate,
+# obvious "yes, the camera and mic work" check without needing Zoom or Teams.
+install_pkg "cheese" "Cheese (webcam test app)"
+
 # ─────────────────────────────────────────────
 # BATTERY AND POWER MANAGEMENT
 # ─────────────────────────────────────────────
@@ -963,6 +968,7 @@ create_shortcut "Files" "thunar" "file-manager"
 create_shortcut "Terminal" "gnome-terminal" "utilities-terminal"
 create_shortcut "Text Editor" "gedit" "gedit"
 create_shortcut "Simple Scan" "simple-scan" "scanner"
+create_shortcut "Cheese" "cheese" "camera-web"
 create_shortcut "VLC" "vlc" "vlc"
 create_shortcut "Screenshot" "flameshot gui" "flameshot"
 create_shortcut "Bluetooth" "blueman-manager" "bluetooth"
