@@ -438,6 +438,7 @@ print_header "Browser and Core Applications"
 echo -e "  ${CYAN}Installing Firefox, a text editor, and printing support.${NC}\n"
 
 install_pkg "firefox-esr" "Firefox web browser"
+install_pkg "chromium" "Chromium web browser"
 install_pkg "gedit" "gedit text editor"
 install_pkg "cups" "CUPS printing system"
 
@@ -923,6 +924,7 @@ DESKTOP_DIR="$ACTUAL_HOME/Desktop"
 mkdir -p "$DESKTOP_DIR"
 
 create_shortcut "Firefox" "firefox-esr" "firefox-esr"
+create_shortcut "Chromium" "chromium" "chromium"
 create_shortcut "Files" "thunar" "file-manager"
 create_shortcut "Terminal" "gnome-terminal" "utilities-terminal"
 create_shortcut "Text Editor" "gedit" "gedit"

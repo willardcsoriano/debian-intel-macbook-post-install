@@ -177,7 +177,11 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   terminal works without escape code artifacts
 
 ### Browser and Core Apps
-- firefox-esr — Mozilla Firefox
+- firefox-esr — Mozilla Firefox (default browser)
+- chromium — installed alongside Firefox specifically so the Microsoft
+  Teams camera-bug fallback (`teams.microsoft.com` in Chromium, see the
+  Microsoft Teams section below) works immediately with no extra install
+  step if you ever need it
 - gedit — simple text editor, similar feel to TextEdit on macOS
 - cups — printing system, works with most USB and network printers
 
