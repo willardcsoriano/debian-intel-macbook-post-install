@@ -157,6 +157,10 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 - fwupd + fwupd-refresh.timer — UEFI and firmware updates via LVFS, refreshed
   automatically on a timer
 - AppArmor verified active (ships enabled on Debian 13, warns if disabled)
+- A systemd drop-in clearing `apt-daily-upgrade.service`'s shipped
+  `ConditionACPower=true` — without this, the daily security-update check
+  silently skips every time the laptop is running on battery, which for a
+  MacBook is not an edge case
 
 ### System Upgrade (optional)
 Near the end, the script offers to run a full `apt full-upgrade` to bring every

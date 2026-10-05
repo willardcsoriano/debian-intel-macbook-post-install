@@ -411,6 +411,27 @@ if systemctl list-unit-files fwupd-refresh.timer &>/dev/null; then
     print_ok "Firmware metadata refresh timer enabled"
 fi
 
+# apt-daily-upgrade.service ships with ConditionACPower=true, so it silently
+# skips every firing while running on battery. This is a laptop by definition —
+# for a user who is mostly unplugged, that condition alone can mean security
+# updates never actually run despite everything above being configured
+# correctly. Clear it with a drop-in rather than editing the shipped unit file,
+# so a package update to apt doesn't just overwrite the change.
+ACPOWER_OVERRIDE_DIR="/etc/systemd/system/apt-daily-upgrade.service.d"
+ACPOWER_OVERRIDE_FILE="$ACPOWER_OVERRIDE_DIR/override.conf"
+if [ ! -f "$ACPOWER_OVERRIDE_FILE" ]; then
+    print_info "Allowing daily security updates to run on battery, not just AC power..."
+    sudo mkdir -p "$ACPOWER_OVERRIDE_DIR"
+    sudo tee "$ACPOWER_OVERRIDE_FILE" > /dev/null << 'EOF'
+[Unit]
+ConditionACPower=
+EOF
+    sudo systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
+    print_ok "apt-daily-upgrade.service will now run regardless of power source"
+else
+    print_skip "apt-daily-upgrade.service AC power condition already cleared"
+fi
+
 # AppArmor ships enabled on Debian 13; only warn if it has been disabled
 if systemctl is-active apparmor &>/dev/null; then
     print_ok "AppArmor is active"
