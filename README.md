@@ -370,6 +370,8 @@ This installs [`teams-for-linux`](https://github.com/IsmaelMartinez/teams-for-li
 
 If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the client. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
 
+**If the camera works everywhere else (Zoom, Cheese) but fails specifically once a Teams call starts:** Teams' web app requests a specific camera resolution via `getUserMedia`, and the reverse-engineered `facetimehd` driver only supports a narrow, fixed set of resolutions — a mismatch fails right there rather than at device detection. Fix: add `~/.config/teams-for-linux/config.json` with `{"media":{"camera":{"resolution":{"enabled":true,"mode":"remove"}}}}` to strip that constraint, then fully quit and relaunch `teams-for-linux`. Immediate fallback with no config needed: use `teams.microsoft.com` in Chromium instead, which negotiates camera constraints more permissively than the Electron client. Full writeup: [dotfiles/notes/teams-for-linux-camera-not-working.md](https://github.com/willardcsoriano/dotfiles/blob/master/notes/teams-for-linux-camera-not-working.md).
+
 ---
 
 ## Verified Test Environment
