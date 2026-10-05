@@ -5,14 +5,17 @@
 A one-command post-installation setup for Intel MacBooks (2012–2019 models)
 running Debian GNU/Linux 13 (Trixie). It picks up where the Broadcom offline
 WiFi install leaves off — a bare terminal — and turns the machine into a
-daily-usable laptop: an XFCE desktop, automatic security updates, a hardened
-Broadcom WiFi rebuild chain, NetworkManager, macOS-style keyboard remapping via
-keyd, working suspend/resume (s2idle plus lid suspend-then-hibernate), a bcm5974
-touchpad resume fix, the reverse-engineered FaceTime HD webcam and microphone
-drivers, and a curated set of everyday applications. An optional theming script
-gives XFCE a macOS-style look — the WhiteSur dark theme and a Plank dock — with
-Classic, Dock, and Revert modes. Both scripts are idempotent and safe to re-run.
-Apple Silicon Macs are not supported; use the Asahi Linux project instead.
+daily-usable laptop: a mandatory pre-change snapshot via Timeshift (so the
+whole run can be undone), an XFCE desktop, automatic security updates that
+actually run on battery power, a hardened Broadcom WiFi rebuild chain,
+NetworkManager, macOS-style keyboard remapping via keyd, working
+suspend/resume (s2idle plus lid suspend-then-hibernate), a bcm5974 touchpad
+resume fix, the reverse-engineered FaceTime HD webcam and microphone
+drivers, and a curated set of everyday applications. An optional theming
+script gives XFCE a macOS-style look — the WhiteSur dark theme and a Plank
+dock — with Classic, Dock, and Revert modes. Both scripts are idempotent and
+safe to re-run. Apple Silicon Macs are not supported; use the Asahi Linux
+project instead.
 
 ## Table of Contents
 
@@ -62,15 +65,15 @@ Apple Silicon Macs are not supported; use the Asahi Linux project instead.
 
 **Setup script** (required):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.0/setup.sh)
 
 **Theming script** (optional, run after first reboot):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.0/themes.sh)
 
 **Microsoft Teams script** (optional, for users who need Teams):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/teams.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.0/teams.sh)
 
 ---
 
@@ -361,7 +364,7 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.0/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
@@ -377,7 +380,7 @@ WhiteSur dark GTK theme, macOS-style window controls on the left, and a
 Plank dock at the bottom — run this after the setup script completes and
 you have rebooted into the desktop:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.0/themes.sh)
 
 You will be prompted to choose a mode:
 
@@ -394,7 +397,7 @@ different mode or choose Revert.
 
 If you need Teams, run this any time after setup completes:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.8.0/teams.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.0/teams.sh)
 
 This installs [`teams-for-linux`](https://github.com/IsmaelMartinez/teams-for-linux), the unofficial Electron client, since Microsoft ships no native Debian package. It adds its own apt repository (`repo.teamsforlinux.de`) so it stays current via normal apt updates, and creates a Desktop shortcut. Safe to skip if you don't use Teams.
 
@@ -443,7 +446,7 @@ https://github.com/willardcsoriano/dotfiles
 
 ## Version History
 
-- **v1.8.0** — Add optional `teams.sh` (unofficial `teams-for-linux` client, installed from its own apt repository) as a standalone opt-in script, kept out of `setup.sh` since not everyone needs Teams; add the `tomoki1207.pdf` VS Code extension to `setup.sh` for native PDF viewing
+- **v1.9.0** — `v1.8.0` was never actually tagged despite being documented as released, leaving the Quick Start commands 404ing against a nonexistent tag; this release folds in everything that was pending plus new additions rather than retroactively fixing the broken tag. Add a mandatory, silent pre-change snapshot via Timeshift (on-demand only, no recurring schedule) before any other step runs; add Chromium alongside Firefox so the documented Teams camera-bug fallback actually works without an extra install; add zram compressed swap whenever no swap is already configured, replacing a warning that previously did nothing; clear `apt-daily-upgrade.service`'s shipped `ConditionACPower=true` so daily security updates actually run on battery, not just AC power; add Cheese for an immediate webcam/mic verification right after the driver installs; add playerctl as the media-key control backend for F7/F8/F9. Also includes what was pending from the untagged v1.8.0: optional `teams.sh` (unofficial `teams-for-linux` client, installed from its own apt repository) as a standalone opt-in script kept out of `setup.sh`; the `tomoki1207.pdf` VS Code extension for native PDF viewing; turning off the keyboard backlight during suspend (s2idle doesn't power it down on its own).
 - **v1.7.7** — Remove the Google Antigravity CLI (`agy`) install: it was personal tooling rather than MacBook/Debian enablement, and dropping it also removes a third-party `curl | bash` installer from the run
 - **v1.7.6** — Add the Google Antigravity CLI (`agy`), installed user-space via the official upstream installer (no root, checksum-verified, idempotent); render the optional system upgrade as its own three-state **System status** line (fully up to date / upgraded / declined) instead of a mislabeled package skip, warning with a catch-up command when pending updates are declined
 - **v1.7.5** — Fix the contradictory closing message (the final banner no longer says "just reboot when ready" on a run that also reports "no reboot needed"); skip the optional system-upgrade prompt entirely when every package is already current, instead of always asking then doing nothing
