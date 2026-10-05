@@ -23,6 +23,7 @@ Apple Silicon Macs are not supported; use the Asahi Linux project instead.
 - [Why Debian on an Intel MacBook](#why-debian-on-an-intel-macbook)
 - [Who This Is For](#who-this-is-for)
 - [What This Script Installs and Configures](#what-this-script-installs-and-configures)
+  - [Pre-Change Safety Snapshot](#pre-change-safety-snapshot)
   - [Swap / Memory Safety Net](#swap-memory-safety-net)
   - [Automatic Security Updates](#automatic-security-updates)
   - [System Upgrade (optional)](#system-upgrade-optional)
@@ -137,6 +138,14 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 ---
 
 ## What This Script Installs and Configures
+
+### Pre-Change Safety Snapshot
+- timeshift — creates one on-demand system snapshot before any other step
+  runs, no prompt, no schedule beyond that single snapshot. This script
+  rewrites GRUB, kernel parameters, logind, polkit, and the network stack —
+  if anything goes wrong on your specific hardware, this entire run can be
+  undone with `sudo timeshift --restore`. Configured for on-demand
+  snapshots only; it does not set up recurring scheduled backups.
 
 ### Swap / Memory Safety Net
 - zram-tools — compressed RAM swap, enabled automatically whenever no swap

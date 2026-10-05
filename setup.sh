@@ -320,6 +320,68 @@ sudo apt update -y >>"$LOG_FILE" 2>&1
 print_ok "Package list is up to date"
 
 # ─────────────────────────────────────────────
+# PRE-CHANGE SAFETY SNAPSHOT
+# ─────────────────────────────────────────────
+# Runs before anything below touches the system (GRUB, kernel params, logind,
+# polkit, NetworkManager, the whole network stack). This script is aimed at
+# people with no way to self-rescue if a step goes wrong on their specific
+# hardware — a free undo button matters more here than it would for someone
+# comfortable debugging a broken boot. Always runs, no prompt: a snapshot
+# that only exists for users who knew to ask for one defeats the point.
+print_header "Pre-Change Safety Snapshot"
+echo -e "  ${CYAN}Creating a system snapshot before changing anything, so this run can be undone.${NC}\n"
+
+install_pkg "timeshift" "Timeshift (system snapshot tool)"
+
+TIMESHIFT_CONF="/etc/timeshift/timeshift.json"
+if [ ! -f "$TIMESHIFT_CONF" ]; then
+    print_info "Configuring Timeshift (RSYNC mode, on-demand snapshots only — no recurring schedule)..."
+    ROOT_UUID=$(findmnt -n -o UUID / 2>/dev/null)
+    if [ -n "$ROOT_UUID" ]; then
+        sudo mkdir -p /etc/timeshift
+        sudo tee "$TIMESHIFT_CONF" > /dev/null << EOF
+{
+  "backup_device_uuid" : "$ROOT_UUID",
+  "parent_device_uuid" : "",
+  "do_first_run" : "false",
+  "btrfs_mode" : "false",
+  "include_btrfs_home_for_backup" : "false",
+  "include_btrfs_home_for_restore" : "false",
+  "stop_cron_emails" : "true",
+  "schedule_monthly" : "false",
+  "schedule_weekly" : "false",
+  "schedule_daily" : "false",
+  "schedule_hourly" : "false",
+  "schedule_boot" : "false",
+  "count_monthly" : "0",
+  "count_weekly" : "0",
+  "count_daily" : "0",
+  "count_hourly" : "0",
+  "count_boot" : "0",
+  "snapshot_size" : "0",
+  "snapshot_count" : "0",
+  "exclude" : [],
+  "exclude-apps" : []
+}
+EOF
+        print_ok "Timeshift configured for on-demand snapshots on this disk"
+    else
+        print_warning "Could not determine root filesystem UUID — skipping automatic snapshot this run"
+    fi
+else
+    print_skip "Timeshift already configured"
+fi
+
+if [ -f "$TIMESHIFT_CONF" ]; then
+    print_info "Creating snapshot (this can take a few minutes on first run)..."
+    if sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" --tags O >>"$LOG_FILE" 2>&1; then
+        print_ok "Snapshot created — undo this entire run with: sudo timeshift --restore"
+    else
+        print_warning "Snapshot creation failed (see $LOG_FILE) — continuing without one. Check free disk space with: df -h /"
+    fi
+fi
+
+# ─────────────────────────────────────────────
 # BROADCOM WIFI HARDENING
 # ─────────────────────────────────────────────
 print_header "Broadcom WiFi Hardening"
@@ -1319,7 +1381,8 @@ fi
 echo -e "${BLUE}${BOLD}══════════════════════════════════════════${NC}\n"
 echo -e "  ${CYAN}A clean panel (app menu, window icons, WiFi, volume, battery, clock) will appear on first login.${NC}"
 echo -e "  ${CYAN}Your saved WiFi password will be picked up automatically.${NC}"
-echo -e "  ${CYAN}All your desktop shortcuts are ready on the Desktop.${NC}\n"
+echo -e "  ${CYAN}All your desktop shortcuts are ready on the Desktop.${NC}"
+echo -e "  ${CYAN}If anything looks wrong, undo this entire run with: sudo timeshift --restore${NC}\n"
 
 # ─────────────────────────────────────────────
 # REBOOT
