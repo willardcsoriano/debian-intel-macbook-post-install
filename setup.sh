@@ -355,9 +355,22 @@ else
     print_skip "wl boot config already set"
 fi
 
-# Swap check — 8GB RAM with no swap will hard freeze on OOM with no warning
-if ! /usr/sbin/swapon --show 2>/dev/null | grep -q .; then
-    print_warning "No swap detected — consider adding a swapfile to prevent out-of-memory freezes"
+# ─────────────────────────────────────────────
+# SWAP / MEMORY SAFETY NET
+# ─────────────────────────────────────────────
+print_header "Swap / Memory Safety Net"
+echo -e "  ${CYAN}8GB RAM with no swap will hard freeze on OOM with no warning — adding compressed RAM swap.${NC}\n"
+
+if /usr/sbin/swapon --show 2>/dev/null | grep -q .; then
+    print_skip "Swap already configured"
+else
+    install_pkg "zram-tools" "zram-tools (compressed RAM swap)"
+    if systemctl list-unit-files zramswap.service &>/dev/null; then
+        sudo systemctl enable --now zramswap.service >>"$LOG_FILE" 2>&1 || true
+        print_ok "Compressed RAM swap active (survives reboot, no disk wear)"
+    else
+        print_warning "zram-tools installed but zramswap.service not found — swap may need a manual check"
+    fi
 fi
 
 # ─────────────────────────────────────────────

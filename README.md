@@ -23,6 +23,7 @@ Apple Silicon Macs are not supported; use the Asahi Linux project instead.
 - [Why Debian on an Intel MacBook](#why-debian-on-an-intel-macbook)
 - [Who This Is For](#who-this-is-for)
 - [What This Script Installs and Configures](#what-this-script-installs-and-configures)
+  - [Swap / Memory Safety Net](#swap-memory-safety-net)
   - [Automatic Security Updates](#automatic-security-updates)
   - [System Upgrade (optional)](#system-upgrade-optional)
   - [Desktop Environment](#desktop-environment)
@@ -136,6 +137,13 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 ---
 
 ## What This Script Installs and Configures
+
+### Swap / Memory Safety Net
+- zram-tools — compressed RAM swap, enabled automatically whenever no swap
+  is already configured. 8GB of RAM with no swap at all will hard-freeze
+  the machine on out-of-memory pressure with no warning; zram avoids that
+  with near-zero disk wear since it never touches the SSD. Skipped if you
+  already have swap set up some other way.
 
 ### Automatic Security Updates
 - linux-image-amd64 — kernel meta-package, ensures the kernel actually updates
