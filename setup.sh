@@ -764,7 +764,7 @@ sudo tee /etc/systemd/system-sleep/touchpad-resume > /dev/null << 'EOF'
 # xfsettingsd replays stored xinput properties on device reconnect; if it has
 # Device_Enabled=0 stored, it disables the touchpad before xorg.conf.d can
 # re-enable it. This hook runs after the device settles and forces it back on.
-[ "$1" = "post" ] && [ "$2" = "resume" ] || exit 0
+[ "$1" = "post" ] || exit 0
 sleep 2
 XUSER=$(who | awk '/:0/{print $1; exit}')
 [ -z "$XUSER" ] && exit 0
