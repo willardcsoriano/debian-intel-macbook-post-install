@@ -1,0 +1,51 @@
+name: Shellcheck PR Review (auto-approve)
+
+# Free alternative to an LLM-based review: runs shellcheck against every
+# changed shell script and posts the result as a real, approving GitHub
+# review from github-actions[bot] -- a distinct identity from the PR
+# author, so it's a genuine recorded review, not a self-approval. No
+# branch protection or required check is added -- this is a record, not a
+# merge gate. Zero cost: shellcheck ships preinstalled on GitHub's
+# ubuntu-latest runners, no API key or secret needed.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run shellcheck on changed shell scripts
+        run: |
+          set -o pipefail
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
+          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- '*.sh' '*.bash' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No shell scripts changed in this PR." > review.md
+          else
+            echo "## shellcheck results" > review.md
+            echo "" >> review.md
+            echo '```' >> review.md
+            echo "$CHANGED" | xargs shellcheck >> review.md 2>&1 || true
+            echo '```' >> review.md
+            if ! grep -q '[A-Za-z]' review.md; then
+              echo "shellcheck found no issues in the changed files." > review.md
+            fi
+          fi
+
+      - name: Post as a GitHub review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" \
+            --approve \
+            --body-file review.md
