@@ -787,6 +787,12 @@ KERNEL_VERSION=$(uname -r)
 if ! dpkg -s "linux-headers-$KERNEL_VERSION" &>/dev/null; then
     print_info "Installing kernel headers for $KERNEL_VERSION..."
     if sudo apt install -y "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1; then
+        # apt install marks the package manual, and versioned headers depend on
+        # their exact kernel image, which would pin this kernel forever. Marked
+        # auto, apt's versioned-kernel protection still keeps them while this
+        # kernel is running or among the newest, and autoremove clears them
+        # along with the kernel once it is superseded.
+        sudo apt-mark auto "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1 || true
         print_ok "Kernel headers installed"
         INSTALLED+=("Kernel headers")
     else
