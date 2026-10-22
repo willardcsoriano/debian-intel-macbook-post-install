@@ -27,7 +27,7 @@ project instead.
 - [Who This Is For](#who-this-is-for)
 - [What This Script Installs and Configures](#what-this-script-installs-and-configures)
   - [Pre-Change Safety Snapshot](#pre-change-safety-snapshot)
-  - [Swap / Memory Safety Net](#swap-memory-safety-net)
+  - [Swap / Memory Safety Net](#swap--memory-safety-net)
   - [Automatic Security Updates](#automatic-security-updates)
   - [System Upgrade (optional)](#system-upgrade-optional)
   - [Desktop Environment](#desktop-environment)
@@ -50,7 +50,7 @@ project instead.
   - [2. Set up sudo for your user](#2-set-up-sudo-for-your-user)
 - [Installation](#installation)
 - [Theming (optional)](#theming-optional)
-- [Microsoft Teams (optional)](#microsoft-teams-optional)
+- [Microsoft Teams](#microsoft-teams)
 - [Verified Test Environment](#verified-test-environment)
 - [Known Limitations](#known-limitations)
 - [Related](#related)
@@ -70,10 +70,6 @@ project instead.
 **Theming script** (optional, run after first reboot):
 
     bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/themes.sh)
-
-**Microsoft Teams script** (optional, for users who need Teams):
-
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/teams.sh)
 
 ---
 
@@ -202,10 +198,9 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
 
 ### Browser and Core Apps
 - firefox-esr — Mozilla Firefox (default browser)
-- chromium — installed alongside Firefox specifically so the Microsoft
-  Teams camera-bug fallback (`teams.microsoft.com` in Chromium, see the
-  Microsoft Teams section below) works immediately with no extra install
-  step if you ever need it
+- chromium — installed alongside Firefox because it is the browser the
+  FaceTime HD camera works with in Microsoft Teams (`teams.microsoft.com`,
+  see the Microsoft Teams section below)
 - gedit — simple text editor, similar feel to TextEdit on macOS
 - cups — printing system, works with most USB and network printers
 
@@ -393,17 +388,30 @@ different mode or choose Revert.
 
 ---
 
-## Microsoft Teams (optional)
+## Microsoft Teams
 
-If you need Teams, run this any time after setup completes:
+Microsoft ships no native Teams client for Debian. Use the web app at
+`teams.microsoft.com` in **Chromium**, which `setup.sh` installs. Nothing
+else to install, and it updates itself.
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/teams.sh)
+Why Chromium rather than a desktop client: when a call starts, Teams asks
+the camera for a specific resolution, and the reverse-engineered
+`facetimehd` driver only supports a narrow, fixed set of resolutions. In the
+unofficial `teams-for-linux` Electron client that mismatch makes the camera
+fail at call start even though it works in Cheese and Zoom; Chromium
+negotiates the camera more permissively and the camera works. Full writeup:
+[dotfiles/notes/teams-for-linux-camera-not-working.md](https://github.com/willardcsoriano/dotfiles/blob/master/notes/teams-for-linux-camera-not-working.md).
 
-This installs [`teams-for-linux`](https://github.com/IsmaelMartinez/teams-for-linux), the unofficial Electron client, since Microsoft ships no native Debian package. It adds its own apt repository (`repo.teamsforlinux.de`) so it stays current via normal apt updates, and creates a Desktop shortcut. Safe to skip if you don't use Teams.
+If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the browser. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
 
-If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the client. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
+**If you installed `teams-for-linux` with the `teams.sh` script from v1.9.x**,
+remove the client, its apt repository and its signing key, since that
+repository is not covered by automatic updates:
 
-**If the camera works everywhere else (Zoom, Cheese) but fails specifically once a Teams call starts:** Teams' web app requests a specific camera resolution via `getUserMedia`, and the reverse-engineered `facetimehd` driver only supports a narrow, fixed set of resolutions — a mismatch fails right there rather than at device detection. Fix: add `~/.config/teams-for-linux/config.json` with `{"media":{"camera":{"resolution":{"enabled":true,"mode":"remove"}}}}` to strip that constraint, then fully quit and relaunch `teams-for-linux`. Immediate fallback with no config needed: use `teams.microsoft.com` in Chromium instead, which negotiates camera constraints more permissively than the Electron client. Full writeup: [dotfiles/notes/teams-for-linux-camera-not-working.md](https://github.com/willardcsoriano/dotfiles/blob/master/notes/teams-for-linux-camera-not-working.md).
+    sudo apt purge -y teams-for-linux
+    sudo rm -f /etc/apt/sources.list.d/teams-for-linux-packages.sources /etc/apt/keyrings/teams-for-linux.asc
+    sudo apt update
+    rm -rf ~/.config/teams-for-linux "$HOME/Desktop/Microsoft Teams.desktop"
 
 ---
 
