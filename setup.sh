@@ -450,9 +450,10 @@ install_pkg "fwupd" "fwupd (firmware updater)"
 # Create /etc/apt/apt.conf.d/20auto-upgrades so the apt periodic timers actually fire
 sudo dpkg-reconfigure -f noninteractive unattended-upgrades >>"$LOG_FILE" 2>&1 || true
 
-# Default 50unattended-upgrades only patches the -security pocket and Debian origins.
-# Extend to the stable -updates pocket and the VS Code repo (third-party origins are
-# excluded by default, so VS Code would otherwise never auto-update).
+# Debian 13's default 50unattended-upgrades covers the -security pocket and stable
+# point releases (label=Debian), but leaves the -updates pocket commented out.
+# Extend to -updates and the VS Code repo (third-party origins are excluded by
+# default, so VS Code would otherwise never auto-update).
 UU_EXTRA="/etc/apt/apt.conf.d/52unattended-upgrades-extra"
 if [ ! -f "$UU_EXTRA" ]; then
     print_info "Extending unattended-upgrades to cover -updates pocket and VS Code..."
@@ -786,6 +787,12 @@ KERNEL_VERSION=$(uname -r)
 if ! dpkg -s "linux-headers-$KERNEL_VERSION" &>/dev/null; then
     print_info "Installing kernel headers for $KERNEL_VERSION..."
     if sudo apt install -y "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1; then
+        # apt install marks the package manual, and versioned headers depend on
+        # their exact kernel image, which would pin this kernel forever. Marked
+        # auto, apt's versioned-kernel protection still keeps them while this
+        # kernel is running or among the newest, and autoremove clears them
+        # along with the kernel once it is superseded.
+        sudo apt-mark auto "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1 || true
         print_ok "Kernel headers installed"
         INSTALLED+=("Kernel headers")
     else
