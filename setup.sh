@@ -450,9 +450,10 @@ install_pkg "fwupd" "fwupd (firmware updater)"
 # Create /etc/apt/apt.conf.d/20auto-upgrades so the apt periodic timers actually fire
 sudo dpkg-reconfigure -f noninteractive unattended-upgrades >>"$LOG_FILE" 2>&1 || true
 
-# Default 50unattended-upgrades only patches the -security pocket and Debian origins.
-# Extend to the stable -updates pocket and the VS Code repo (third-party origins are
-# excluded by default, so VS Code would otherwise never auto-update).
+# Debian 13's default 50unattended-upgrades covers the -security pocket and stable
+# point releases (label=Debian), but leaves the -updates pocket commented out.
+# Extend to -updates and the VS Code repo (third-party origins are excluded by
+# default, so VS Code would otherwise never auto-update).
 UU_EXTRA="/etc/apt/apt.conf.d/52unattended-upgrades-extra"
 if [ ! -f "$UU_EXTRA" ]; then
     print_info "Extending unattended-upgrades to cover -updates pocket and VS Code..."
