@@ -21,7 +21,7 @@ project instead.
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
-- [⚠️ Compatibility Notice](#-compatibility-notice)
+- [⚠️ Compatibility Notice](#️-compatibility-notice)
 - [The Story So Far](#the-story-so-far)
 - [Why Debian on an Intel MacBook](#why-debian-on-an-intel-macbook)
 - [Who This Is For](#who-this-is-for)
@@ -99,7 +99,7 @@ MacBooks from 2012–2019 running Debian 13 Trixie.
 
 ## The Story So Far
 
-If you just came from the [Broadcom offline repo](https://github.com/willardcsoriano/debian-intel-macbook-broadcom-offline), you have accomplished something genuinely difficult — you installed Linux on a MacBook with no internet access and got WiFi working entirely from a USB stick. That is not a beginner task and you should feel good about it.
+If you just came from the [offline WiFi kit](https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline), you have accomplished something genuinely difficult — you installed Linux on a MacBook with no internet access and got WiFi working entirely from a USB stick. That is not a beginner task and you should feel good about it.
 
 But right now you are staring at a terminal. No desktop, no browser, no
 way to adjust brightness, no GUI tools, no keyboard shortcuts that feel
@@ -132,7 +132,7 @@ This script is for users who have:
 4. Internet connected via wpa_supplicant and dhcpcd
 5. A terminal and nothing else
 
-If you have not yet gotten WiFi working, start [here](https://github.com/willardcsoriano/debian-intel-macbook-broadcom-offline) first.
+If you have not yet gotten WiFi working, start [here](https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline) first.
 
 ---
 
@@ -444,7 +444,7 @@ repository is not covered by automatic updates:
 ## Related
 
 Step 1 — get WiFi working before running this script:
-https://github.com/willardcsoriano/debian-intel-macbook-broadcom-offline
+https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline
 
 Optional — personal touchpad preferences (tap-to-click, natural scrolling,
 cursor acceleration) on top of the resume fix this script installs:
