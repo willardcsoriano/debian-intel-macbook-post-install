@@ -11,6 +11,10 @@ name: Shellcheck PR Review (auto-approve)
 # branch protection or required check is added -- this is a record, not a
 # merge gate. Zero cost: shellcheck ships preinstalled on GitHub's
 # ubuntu-latest runners, no API key or secret needed.
+#
+# Note: because this posts from github-actions[bot], it does NOT count
+# toward the PR author's own GitHub profile contribution stats -- those
+# only count reviews submitted by that person's own account.
 
 on:
   pull_request:
@@ -24,7 +28,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -32,17 +36,18 @@ jobs:
         run: |
           set -o pipefail
           git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
-          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- '*.sh' '*.bash' || true)
+          CHANGED=$(git diff --name-only --diff-filter=d "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- '*.sh' '*.bash' || true)
           if [ -z "$CHANGED" ]; then
             echo "No shell scripts changed in this PR." > review.md
           else
-            echo "## shellcheck results" > review.md
-            echo "" >> review.md
-            echo '```' >> review.md
-            echo "$CHANGED" | xargs shellcheck >> review.md 2>&1 || true
-            echo '```' >> review.md
-            if ! grep -q '[A-Za-z]' review.md; then
-              echo "shellcheck found no issues in the changed files." > review.md
+            # Test shellcheck's own output, not the assembled markdown: the
+            # header always contains letters, so checking review.md could
+            # never detect a clean run.
+            FINDINGS=$(echo "$CHANGED" | xargs shellcheck 2>&1 || true)
+            if [ -z "$FINDINGS" ]; then
+              { echo "shellcheck found no issues in:"; echo "$CHANGED" | sed 's/^/- `/; s/$/`/'; } > review.md
+            else
+              { echo "## shellcheck results"; echo; echo '```'; echo "$FINDINGS"; echo '```'; } > review.md
             fi
           fi
 
