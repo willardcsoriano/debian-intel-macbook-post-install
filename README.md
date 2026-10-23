@@ -233,6 +233,13 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   wpa_supplicant + dhcpcd workflow permanently. After this you will never
   type ip link or wpa_passphrase again. WiFi connects automatically on boot
   and a tray icon lets you switch networks from the desktop.
+- polkit rule refusing network changes from a locked screen — Debian lets
+  you change network settings without a password while you're at the
+  desktop, but once the screen locks that permission lapses and a
+  background process can pop up an admin password dialog you never asked
+  for. The rule refuses those requests instead, so an unexpected password
+  prompt about network settings never appears. Nothing changes while
+  you're using the desktop.
 
 ### MacBook Keyboard Fixes
 This is one of the most important parts of the script. Out of the box on
