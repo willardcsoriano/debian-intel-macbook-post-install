@@ -65,11 +65,11 @@ project instead.
 
 **Setup script** (required):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/setup.sh)
 
 **Theming script** (optional, run after first reboot):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/themes.sh)
 
 ---
 
@@ -366,7 +366,7 @@ If you see "sudo is working" you are ready.
 
 Run this single command as your regular user, not as root:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/setup.sh)
 
 The script prints progress for every step. Estimated time: 20–40 minutes
 depending on internet speed. LibreOffice alone is ~300MB.
@@ -382,7 +382,7 @@ WhiteSur dark GTK theme, macOS-style window controls on the left, and a
 Plank dock at the bottom — run this after the setup script completes and
 you have rebooted into the desktop:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.9.1/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/themes.sh)
 
 You will be prompted to choose a mode:
 
@@ -461,6 +461,7 @@ https://github.com/willardcsoriano/dotfiles
 
 ## Version History
 
+- **v1.10.0** — Refuse NetworkManager changes from locked or background sessions with a polkit rule. With the screen locked, Debian's no-password network rule stops applying, and a background process could raise an admin password dialog nobody asked for. Stop versioned kernel headers from pinning the install-time kernel, so `apt autoremove` can clear superseded kernels. Drop the optional `teams.sh` (`teams-for-linux`) in favor of Teams on the web in Chromium, which is the path where the FaceTime HD camera works; the README gives removal steps for existing installs. Update links for the renamed offline WiFi kit repo, regenerate the TOC with GitHub-accurate anchors, and add the issue labeler, issue forms and PR template.
 - **v1.9.1** — Fix the `touchpad-resume` sleep hook's trigger condition: it guarded on `[ "$1" = "post" ] && [ "$2" = "resume" ]`, but systemd's sleep-hook contract never actually passes the literal string `"resume"` as the second argument (it's always the sleep action — `suspend`, `hibernate`, etc.) — so the condition could never be true and the hook has been dead code since it was written. The touchpad re-enable behavior users actually observed was coming entirely from the `xfconf` `Device_Enabled` correction earlier in the script, not from this hook. Fixed to guard on `[ "$1" = "post" ]` alone, matching the equivalent fix already applied in the `dotfiles` repo's copy of this hook.
 - **v1.9.0** — `v1.8.0` was never actually tagged despite being documented as released, leaving the Quick Start commands 404ing against a nonexistent tag; this release folds in everything that was pending plus new additions rather than retroactively fixing the broken tag. Add a mandatory, silent pre-change snapshot via Timeshift (on-demand only, no recurring schedule) before any other step runs; add Chromium alongside Firefox so the documented Teams camera-bug fallback actually works without an extra install; add zram compressed swap whenever no swap is already configured, replacing a warning that previously did nothing; clear `apt-daily-upgrade.service`'s shipped `ConditionACPower=true` so daily security updates actually run on battery, not just AC power; add Cheese for an immediate webcam/mic verification right after the driver installs; add playerctl as the media-key control backend for F7/F8/F9. Also includes what was pending from the untagged v1.8.0: optional `teams.sh` (unofficial `teams-for-linux` client, installed from its own apt repository) as a standalone opt-in script kept out of `setup.sh`; the `tomoki1207.pdf` VS Code extension for native PDF viewing; turning off the keyboard backlight during suspend (s2idle doesn't power it down on its own).
 - **v1.7.7** — Remove the Google Antigravity CLI (`agy`) install: it was personal tooling rather than MacBook/Debian enablement, and dropping it also removes a third-party `curl | bash` installer from the run
