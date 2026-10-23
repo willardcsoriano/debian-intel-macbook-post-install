@@ -673,6 +673,29 @@ sudo systemctl enable NetworkManager >>"$LOG_FILE" 2>&1 || true
 sudo systemctl start NetworkManager >>"$LOG_FILE" 2>&1 || true
 print_ok "NetworkManager is running — WiFi will connect automatically on boot"
 
+# polkit (authority / safety layer)
+# Debian lets a local, *active* sudo/netdev user change system network
+# settings without a password. Lock the screen and light-locker switches to
+# the greeter VT, logind marks the session inactive, and that rule stops
+# matching: a background process (nm-applet, for one) can then fall through
+# to an admin password dialog nobody asked for, waiting for you on unlock.
+# Nothing on a locked seat needs to reconfigure the network, and a password
+# prompt you didn't trigger is one you should never get used to answering,
+# so refuse outright instead. This only removes a path: active sessions and
+# sudo/root are unaffected, and NetworkManager itself still reconnects on
+# its own while locked.
+print_info "Refusing NetworkManager changes from locked/background sessions..."
+sudo mkdir -p /etc/polkit-1/rules.d
+sudo tee /etc/polkit-1/rules.d/50-networkmanager-inactive-session.rules > /dev/null << 'EOF'
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 &&
+        subject.local && !subject.active) {
+        return polkit.Result.NO;
+    }
+});
+EOF
+print_ok "NetworkManager changes refused while the session is locked or in the background"
+
 # ─────────────────────────────────────────────
 # KEYBOARD
 # ─────────────────────────────────────────────
