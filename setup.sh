@@ -20,8 +20,30 @@ NC='\033[0m'
 # ─────────────────────────────────────────────
 # LOGGING
 # ─────────────────────────────────────────────
-LOG_FILE="$HOME/setup-$(date +%Y%m%d-%H%M%S).log"
-touch "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/setup-$(date +%Y%m%d-%H%M%S).log"
+# Logs go in the XDG state directory (~/.local/state by default), not $HOME —
+# re-running the installer shouldn't scatter timestamped files across the home
+# directory. We keep a short rolling history plus a stable 'latest.log' symlink,
+# and fall back to /tmp if the state dir can't be created or written.
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/macbook-postinstall"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
+if ! touch "$LOG_FILE" 2>/dev/null; then
+    LOG_DIR="/tmp"
+    LOG_FILE="$LOG_DIR/macbook-postinstall-$(date +%Y%m%d-%H%M%S).log"
+    touch "$LOG_FILE"
+fi
+
+# 'latest.log' always points at the current run; prune older runs so the log dir
+# keeps only the five most recent (skipped for the /tmp fallback, which the OS
+# clears on its own). The timestamped names sort oldest first, so the glob is
+# already in age order.
+if [ "$LOG_DIR" != "/tmp" ]; then
+    ln -sfn "$LOG_FILE" "$LOG_DIR/latest.log" 2>/dev/null || true
+    OLD_LOGS=("$LOG_DIR"/setup-*.log)
+    if [ "${#OLD_LOGS[@]}" -gt 5 ]; then
+        rm -f "${OLD_LOGS[@]:0:${#OLD_LOGS[@]}-5}"
+    fi
+fi
 
 # ─────────────────────────────────────────────
 # TRACKING
@@ -1398,6 +1420,9 @@ case "$UPGRADE_STATE" in
 esac
 
 echo -e "\n${CYAN}  Full log saved to: $LOG_FILE${NC}"
+if [ "$LOG_DIR" != "/tmp" ]; then
+    echo -e "${CYAN}  Latest run always at: $LOG_DIR/latest.log${NC}"
+fi
 
 # ─────────────────────────────────────────────
 # NEXT STEPS
