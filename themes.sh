@@ -264,16 +264,24 @@ clone_with_retry() {
     exit 1
 }
 
-# WhiteSur GTK theme — skip if already installed
-if [ ! -d "$HOME/.themes/WhiteSur-Dark" ] && [ ! -d "$HOME/.local/share/themes/WhiteSur-Dark" ]; then
+# WhiteSur GTK theme, both Light and Dark (the installer's default with no
+# -c flag; Light adds ~8 MB). Dark is applied below; Light sits ready so
+# switching is just Settings > Appearance and Window Manager, no re-run.
+# Skip only when both are present, so a re-run on an older dark-only install
+# fills in Light.
+whitesur_installed() {
+    [ -d "$HOME/.themes/WhiteSur-$1" ] || [ -d "$HOME/.local/share/themes/WhiteSur-$1" ]
+}
+if ! whitesur_installed Dark || ! whitesur_installed Light; then
     clone_with_retry https://github.com/vinceliuice/WhiteSur-gtk-theme.git /tmp/WhiteSur-gtk
-    bash /tmp/WhiteSur-gtk/install.sh -c dark
+    bash /tmp/WhiteSur-gtk/install.sh
     rm -rf /tmp/WhiteSur-gtk
 else
-    echo "WhiteSur GTK theme already installed, skipping."
+    echo "WhiteSur GTK theme (Light and Dark) already installed, skipping."
 fi
 
-# WhiteSur icons — skip if already installed
+# WhiteSur icons — -a installs every variant: WhiteSur-dark (for dark themes)
+# and WhiteSur-light (dark panel symbols, for light themes). Skip if installed.
 if [ ! -d "$HOME/.icons/WhiteSur-dark" ] && [ ! -d "$HOME/.local/share/icons/WhiteSur-dark" ]; then
     clone_with_retry https://github.com/vinceliuice/WhiteSur-icon-theme.git /tmp/WhiteSur-icons
     bash /tmp/WhiteSur-icons/install.sh -a
