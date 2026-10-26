@@ -642,9 +642,32 @@ install_pkgs "XFCE desktop environment" xfce4 xfce4-goodies && REBOOT_REQUIRED=t
 # TERMINAL
 # ─────────────────────────────────────────────
 print_header "Terminal"
-echo -e "  ${CYAN}Installing a modern terminal with proper copy-paste support.${NC}\n"
+echo -e "  ${CYAN}Setting XFCE's own terminal as the default terminal.${NC}\n"
 
-install_pkg "gnome-terminal" "GNOME Terminal"
+# xfce4-terminal is a dependency of xfce4-goodies (installed above), so it is
+# always present: copy-paste, right-click menu, mouse support, and theming
+# through XFCE's own settings. Make it the default for both XFCE's "Terminal
+# Emulator" (Ctrl+Alt+T, Thunar's "Open Terminal Here") and the system-wide
+# x-terminal-emulator.
+if [ -x /usr/bin/xfce4-terminal.wrapper ]; then
+    if [ "$(readlink -f /etc/alternatives/x-terminal-emulator)" != "/usr/bin/xfce4-terminal.wrapper" ]; then
+        sudo update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper >>"$LOG_FILE" 2>&1 \
+            && print_ok "xfce4-terminal set as the system default terminal"
+    else
+        print_skip "Default terminal (xfce4-terminal)"
+    fi
+fi
+HELPERS_RC="$ACTUAL_HOME/.config/xfce4/helpers.rc"
+mkdir -p "$(dirname "$HELPERS_RC")"
+if grep -qx "TerminalEmulator=xfce4-terminal" "$HELPERS_RC" 2>/dev/null; then
+    print_skip "XFCE preferred terminal (xfce4-terminal)"
+elif grep -q "^TerminalEmulator=" "$HELPERS_RC" 2>/dev/null; then
+    sed -i 's/^TerminalEmulator=.*/TerminalEmulator=xfce4-terminal/' "$HELPERS_RC"
+    print_ok "XFCE preferred terminal set to xfce4-terminal"
+else
+    echo "TerminalEmulator=xfce4-terminal" >> "$HELPERS_RC"
+    print_ok "XFCE preferred terminal set to xfce4-terminal"
+fi
 
 BASHRC="/etc/bash.bashrc"
 if ! grep -q "enable-bracketed-paste" "$BASHRC"; then
@@ -659,11 +682,12 @@ fi
 # BROWSER AND APPS
 # ─────────────────────────────────────────────
 print_header "Browser and Core Applications"
-echo -e "  ${CYAN}Installing Firefox, a text editor, and printing support.${NC}\n"
+echo -e "  ${CYAN}Installing Firefox, a calculator, and printing support.${NC}\n"
 
 install_pkg "firefox-esr" "Firefox web browser"
 install_pkg "chromium" "Chromium web browser"
-install_pkg "gedit" "gedit text editor"
+# Text editing uses Mousepad, XFCE's own editor (a dependency of xfce4-goodies).
+install_pkg "galculator" "galculator (calculator)"
 install_pkg "cups" "CUPS printing system"
 
 sudo systemctl enable cups >>"$LOG_FILE" 2>&1 || true
