@@ -20,7 +20,7 @@ echo "  1) Classic  — desktop icons visible, Plank shows open apps"
 echo "  2) Dock     — clean empty desktop, all apps in Plank"
 echo "  3) Revert   — remove all themes, restore vanilla XFCE"
 echo ""
-read -p "  Enter 1, 2, or 3: " MODE
+read -r -p "  Enter 1, 2, or 3: " MODE
 
 if [[ "$MODE" != "1" && "$MODE" != "2" && "$MODE" != "3" ]]; then
     echo "Invalid selection. Exiting."
@@ -154,7 +154,7 @@ if [[ "$MODE" == "3" ]]; then
     echo "  This will remove WhiteSur themes/icons, Plank, the docklike plugin,"
     echo "  and reset XFCE panel/desktop config to defaults."
     echo ""
-    read -p "  Continue? [y/N]: " CONFIRM
+    read -r -p "  Continue? [y/N]: " CONFIRM
     if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
         echo "Aborted."
         exit 0
@@ -344,8 +344,8 @@ seed_plank_config() {
     pkill plank 2>/dev/null || true
     sleep 1
     plank &
-    local i
-    for i in $(seq 1 20); do
+    local _
+    for _ in $(seq 1 20); do
         [ -f "$HOME/.config/plank/dock1/settings" ] && break
         sleep 0.5
     done
@@ -450,7 +450,7 @@ EOF
             for dir in "${SEARCH_DIRS[@]}"; do
                 src="$dir/${cand}.desktop"
                 [ -f "$src" ] || continue
-                cat > ~/.config/plank/dock1/launchers/${cand}.dockitem << EOF
+                cat > ~/.config/plank/dock1/launchers/"${cand}".dockitem << EOF
 [PlankDockItemPreferences]
 Launcher=file://${src}
 Sort=${sort_idx}
