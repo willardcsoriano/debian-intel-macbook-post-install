@@ -194,16 +194,17 @@ fix_desktop_launchers() {
     fi
 }
 
+# Creates a Desktop shortcut, or rewrites one this script generated earlier
+# with different content (e.g. a launcher that changed terminal), so re-runs
+# converge on the current list instead of keeping stale shortcuts.
 create_shortcut() {
     local name=$1
     local exec=$2
     local icon=$3
     local terminal=${4:-false}
     local file="$DESKTOP_DIR/${name}.desktop"
-    if [ -f "$file" ]; then
-        print_skip "$name desktop shortcut"
-    else
-        cat > "$file" <<SHORTCUT
+    local content
+    content=$(cat <<SHORTCUT
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -212,9 +213,48 @@ Exec=$exec
 Icon=$icon
 Terminal=$terminal
 SHORTCUT
-        chmod +x "$file"
-        print_ok "$name shortcut created on Desktop"
+)
+    if [ -f "$file" ] && [ "$(cat "$file")" = "$content" ]; then
+        print_skip "$name desktop shortcut"
+        return
     fi
+    local verb="created"
+    [ -f "$file" ] && verb="updated"
+    printf '%s\n' "$content" > "$file"
+    chmod +x "$file"
+    print_ok "$name shortcut $verb on Desktop"
+}
+
+# Removes a shortcut an earlier version of this script generated, but only if
+# its Exec line is still exactly what that version wrote -- a same-named
+# shortcut the user made or edited is left alone.
+retire_shortcut() {
+    local name=$1
+    local exec=$2
+    local file="$DESKTOP_DIR/${name}.desktop"
+    if [ -f "$file" ] && grep -qxF "Exec=$exec" "$file"; then
+        rm -f "$file"
+        print_ok "Removed retired $name shortcut"
+    fi
+}
+
+# Sets <desktop-id> as the default app for each MIME type that has no default
+# yet in the user's mimeapps.list, so a choice the user already made wins and
+# re-runs change nothing.
+set_default_app() {
+    local app=$1
+    shift
+    local mime list="$ACTUAL_HOME/.config/mimeapps.list"
+    [ -f "/usr/share/applications/$app" ] || return 0
+    for mime in "$@"; do
+        if [ -f "$list" ] && awk -v m="$mime=" '
+            /^\[/ { sect = $0; next }
+            sect == "[Default Applications]" && index($0, m) == 1 { found = 1 }
+            END { exit !found }' "$list"; then
+            continue
+        fi
+        xdg-mime default "$app" "$mime"
+    done
 }
 
 # ─────────────────────────────────────────────
@@ -642,9 +682,32 @@ install_pkgs "XFCE desktop environment" xfce4 xfce4-goodies && REBOOT_REQUIRED=t
 # TERMINAL
 # ─────────────────────────────────────────────
 print_header "Terminal"
-echo -e "  ${CYAN}Installing a modern terminal with proper copy-paste support.${NC}\n"
+echo -e "  ${CYAN}Setting XFCE's own terminal as the default terminal.${NC}\n"
 
-install_pkg "gnome-terminal" "GNOME Terminal"
+# xfce4-terminal is a dependency of xfce4-goodies (installed above), so it is
+# always present: copy-paste, right-click menu, mouse support, and theming
+# through XFCE's own settings. Make it the default for both XFCE's "Terminal
+# Emulator" (Ctrl+Alt+T, Thunar's "Open Terminal Here") and the system-wide
+# x-terminal-emulator.
+if [ -x /usr/bin/xfce4-terminal.wrapper ]; then
+    if [ "$(readlink -f /etc/alternatives/x-terminal-emulator)" != "/usr/bin/xfce4-terminal.wrapper" ]; then
+        sudo update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper >>"$LOG_FILE" 2>&1 \
+            && print_ok "xfce4-terminal set as the system default terminal"
+    else
+        print_skip "Default terminal (xfce4-terminal)"
+    fi
+fi
+HELPERS_RC="$ACTUAL_HOME/.config/xfce4/helpers.rc"
+mkdir -p "$(dirname "$HELPERS_RC")"
+if grep -qx "TerminalEmulator=xfce4-terminal" "$HELPERS_RC" 2>/dev/null; then
+    print_skip "XFCE preferred terminal (xfce4-terminal)"
+elif grep -q "^TerminalEmulator=" "$HELPERS_RC" 2>/dev/null; then
+    sed -i 's/^TerminalEmulator=.*/TerminalEmulator=xfce4-terminal/' "$HELPERS_RC"
+    print_ok "XFCE preferred terminal set to xfce4-terminal"
+else
+    echo "TerminalEmulator=xfce4-terminal" >> "$HELPERS_RC"
+    print_ok "XFCE preferred terminal set to xfce4-terminal"
+fi
 
 BASHRC="/etc/bash.bashrc"
 if ! grep -q "enable-bracketed-paste" "$BASHRC"; then
@@ -659,11 +722,12 @@ fi
 # BROWSER AND APPS
 # ─────────────────────────────────────────────
 print_header "Browser and Core Applications"
-echo -e "  ${CYAN}Installing Firefox, a text editor, and printing support.${NC}\n"
+echo -e "  ${CYAN}Installing Firefox, a calculator, and printing support.${NC}\n"
 
 install_pkg "firefox-esr" "Firefox web browser"
 install_pkg "chromium" "Chromium web browser"
-install_pkg "gedit" "gedit text editor"
+# Text editing uses Mousepad, XFCE's own editor (a dependency of xfce4-goodies).
+install_pkg "galculator" "galculator (calculator)"
 install_pkg "cups" "CUPS printing system"
 
 sudo systemctl enable cups >>"$LOG_FILE" 2>&1 || true
@@ -1185,22 +1249,38 @@ mkdir -p "$DESKTOP_DIR"
 create_shortcut "Firefox" "firefox-esr" "firefox-esr"
 create_shortcut "Chromium" "chromium" "chromium"
 create_shortcut "Files" "thunar" "file-manager"
-create_shortcut "Terminal" "gnome-terminal" "utilities-terminal"
-create_shortcut "Text Editor" "gedit" "gedit"
-create_shortcut "Simple Scan" "simple-scan" "scanner"
-create_shortcut "Cheese" "cheese" "camera-web"
-create_shortcut "VLC" "vlc" "vlc"
-create_shortcut "Screenshot" "flameshot gui" "flameshot"
-create_shortcut "Bluetooth" "blueman-manager" "bluetooth"
-create_shortcut "Task Manager" "xfce4-taskmanager" "utilities-system-monitor"
-create_shortcut "System Settings" "xfce4-settings-manager" "preferences-system"
-create_shortcut "htop" "gnome-terminal -- htop" "utilities-system-monitor" "true"
-create_shortcut "System Info" "gnome-terminal -- fastfetch" "computer" "true"
+create_shortcut "Terminal" "xfce4-terminal" "utilities-terminal"
+create_shortcut "Text Editor" "mousepad" "org.xfce.mousepad"
+create_shortcut "VS Code" "code" "code"
 create_shortcut "LibreOffice Writer" "libreoffice --writer" "libreoffice-writer"
 create_shortcut "LibreOffice Calc" "libreoffice --calc" "libreoffice-calc"
 create_shortcut "LibreOffice Impress" "libreoffice --impress" "libreoffice-impress"
-create_shortcut "Image Editor" "mtpaint" "applications-graphics"
-create_shortcut "VS Code" "code" "code"
+create_shortcut "VLC" "vlc" "vlc"
+create_shortcut "Images" "ristretto" "org.xfce.ristretto"
+create_shortcut "Screenshot" "flameshot gui" "flameshot"
+create_shortcut "Calculator" "galculator" "accessories-calculator"
+create_shortcut "Task Manager" "xfce4-taskmanager" "utilities-system-monitor"
+create_shortcut "Bluetooth" "blueman-manager" "bluetooth"
+create_shortcut "System Settings" "xfce4-settings-manager" "preferences-system"
+# --hold keeps the window open after fastfetch exits so its output stays readable.
+create_shortcut "System Info" "xfce4-terminal --hold -x fastfetch" "computer"
+
+# Shortcuts earlier versions created. Still in the app menu; no longer on the
+# Desktop. Removed only while they are exactly what the script wrote. (Renamed
+# targets like Terminal and Text Editor are rewritten by create_shortcut above.)
+retire_shortcut "Simple Scan" "simple-scan"
+retire_shortcut "Cheese" "cheese"
+retire_shortcut "htop" "gnome-terminal -- htop"
+retire_shortcut "Image Editor" "mtpaint"
+
+# Default apps: plain text opened in LibreOffice Writer and images in
+# ImageMagick's bare viewer. Point them at the light XFCE apps, for every MIME
+# type each one declares it handles -- unless the user already chose a default.
+print_info "Setting default apps for text files and images (where none is chosen yet)..."
+set_default_app "org.xfce.mousepad.desktop" text/plain
+mapfile -t RISTRETTO_MIMES < <(sed -n 's/^MimeType=//p' /usr/share/applications/org.xfce.ristretto.desktop 2>/dev/null | tr ';' '\n' | grep -v '^$')
+set_default_app "org.xfce.ristretto.desktop" "${RISTRETTO_MIMES[@]}"
+print_ok "Default apps set"
 
 cat > "$ACTUAL_HOME/Desktop/KEYBOARD SHORTCUTS.txt" << 'SHORTCUTS'
 ═══════════════════════════════════════════════════════
