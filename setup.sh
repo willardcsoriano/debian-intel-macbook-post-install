@@ -1527,101 +1527,100 @@ cat > "$ACTUAL_HOME/Desktop/KEYBOARD SHORTCUTS.txt" << 'SHORTCUTS'
   Intel MacBooks · Debian 13 Trixie · XFCE
 ═══════════════════════════════════════════════════════
 
-NOTE: On this setup, the Cmd key works as Ctrl.
-      So Cmd+C = Ctrl+C, Cmd+V = Ctrl+V, etc.
+Keys work as on macOS Monterey, with one exception:
+Cmd+Tab moves to the next tab and Option+Tab switches
+apps. Any shortcut an app lists as Ctrl+<key> also
+works as Cmd+<key>. Right Option is plain Alt.
 
 ───────────────────────────────────────────────────────
   GENERAL (works in most apps)
 ───────────────────────────────────────────────────────
-  Cmd+C              Copy
-  Cmd+V              Paste
+  Cmd+C / Cmd+V      Copy / Paste
   Cmd+X              Cut
   Cmd+Z              Undo
-  Cmd+A              Select All
+  Cmd+A              Select all
   Cmd+S              Save
   Cmd+F              Find
-  Cmd+W              Close window
+  Cmd+W              Close tab or window
   Cmd+Q              Quit app
-  Cmd+Tab            Switch between open apps
+  Cmd+Tab            Next tab (Cmd+Shift+Tab: previous)
+  Option+Tab         Switch apps (hold Option, tap Tab)
+  Cmd+`              Switch windows of the same app
+  Cmd+Shift+[ / ]    Previous / next tab
+  Cmd+Option+Left / Right   Previous / next tab
+  Cmd+[ / ]          Back / forward (browser, Files)
+  Cmd+H or Cmd+M     Hide (minimize) window
+  Cmd+Space          Spotlight (app finder)
 
 ───────────────────────────────────────────────────────
-  TEXT NAVIGATION
+  TEXT EDITING
 ───────────────────────────────────────────────────────
-  Cmd+Left           Jump to start of line
-  Cmd+Right          Jump to end of line
-  Cmd+Up             Jump to start of document
-  Cmd+Down           Jump to end of document
-  Cmd+Shift+Left     Select to start of line
-  Cmd+Shift+Right    Select to end of line
-  Cmd+Shift+Up       Select to start of document
-  Cmd+Shift+Down     Select to end of document
-  Cmd+Backspace      Delete entire line to left of cursor
+  Cmd+Left / Right   Start / end of line
+  Cmd+Up / Down      Start / end of document
+  Option+Left/Right  Jump one word
+  Cmd+Backspace      Delete to start of line
+  Option+Backspace   Delete one word
+  Cmd+Option+F       Find and replace
+  Add Shift to any move to select as you go.
+  The control key works as in macOS text fields:
+  Ctrl+A / E line start / end, Ctrl+K cut to end of
+  line, Ctrl+F / B / N / P move, Ctrl+H / D delete.
+
+───────────────────────────────────────────────────────
+  IN FILES (like Finder)
+───────────────────────────────────────────────────────
+  Cmd+Backspace      Move to Trash
+  Cmd+Up / Down      Enclosing folder / open
+  Cmd+I              Properties (Get Info)
+
+───────────────────────────────────────────────────────
+  IN THE TERMINAL
+───────────────────────────────────────────────────────
+  Cmd+C / Cmd+V      Copy / Paste
+  Ctrl+C             Stop the running program
+  Cmd+T / Cmd+N      New tab / new window
+  Cmd+W / Cmd+Q      Close tab / close window
+  Option+Left/Right  Jump one word; Option+Backspace
+                     deletes one, Cmd+Backspace the line
+  (Takes effect after you log out and back in once.)
 
 ───────────────────────────────────────────────────────
   DESKTOP AND WINDOWS
 ───────────────────────────────────────────────────────
-  Cmd+Space          Open app finder (like Spotlight)
-  Ctrl+Alt+D         Show desktop (hide all windows)
-  Ctrl+Alt+L         Lock screen
-  Ctrl+Alt+T         Open terminal
-  Ctrl+Alt+F         Open file manager
-  Alt+Tab            Switch between open windows
-  Alt+Shift+Tab      Switch windows in reverse
-  Alt+F4             Close window
-  Alt+F10            Maximize window
-  Alt+F9             Minimize window
-  Alt+F11            Fullscreen
+  Ctrl+Up or F3      Mission Control (all windows)
+  Ctrl+Down          All windows of the front app
+  Ctrl+Left / Right  Previous / next desktop
+  Cmd+F3             Show the desktop
+  Ctrl+Cmd+F         Full screen
+  Drag to an edge    Snap the window to that half
 
 ───────────────────────────────────────────────────────
   MAC-STYLE FUNCTION KEYS
 ───────────────────────────────────────────────────────
-  F1                 Brightness down
-  F2                 Brightness up
-  F3                 Window switcher (like Mission Control)
+  The top row works like on macOS. Hold Fn to get plain
+  F1-F12 instead.
+
+  F1 / F2            Screen brightness down / up
+  F3                 Mission Control (Cmd+F3: show desktop)
   F4                 Open app finder (like Launchpad)
-  F5                 Keyboard backlight down
-  F6                 Keyboard backlight up
-  F7                 Previous track
-  F8                 Play / Pause
-  F9                 Next track
+  F5 / F6            Keyboard backlight down / up
+  F7 / F8 / F9       Previous track / Play-Pause / Next track
   F10                Mute / Unmute
-  F11                Volume down
-  F12                Volume up
-  Fn+F1-F12          Use as standard F1-F12 keys
+  F11 / F12          Volume down / up
 
 ───────────────────────────────────────────────────────
   SCREENSHOTS
 ───────────────────────────────────────────────────────
-  Ctrl+Alt+S         Screenshot with annotation (flameshot)
-  Print              Full screen screenshot (screenshooter)
-  Shift+Print        Region screenshot (screenshooter)
-  Alt+Print          Active window screenshot
+  Cmd+Shift+3        Whole screen, saved to Pictures and
+                     copied to the clipboard
+  Cmd+Shift+4 or 5   Pick an area, annotate (Flameshot)
 
 ───────────────────────────────────────────────────────
   SYSTEM
 ───────────────────────────────────────────────────────
-  Ctrl+Shift+Esc     Open task manager
-  Ctrl+Alt+Esc       Click a window to force quit it
-  Ctrl+Alt+Delete    Log out / shutdown menu
-
-───────────────────────────────────────────────────────
-  WINDOW TILING (drag to edge OR use keys)
-───────────────────────────────────────────────────────
-  Drag to edge       Snap window to that half of screen
-  Cmd+KP_Left        Tile window to left half
-  Cmd+KP_Right       Tile window to right half
-  Cmd+KP_Up          Tile window to top half
-  Cmd+KP_Down        Tile window to bottom half
-
-───────────────────────────────────────────────────────
-  WORKSPACES (virtual desktops)
-───────────────────────────────────────────────────────
-  Ctrl+Alt+Left      Switch to left workspace
-  Ctrl+Alt+Right     Switch to right workspace
-  Ctrl+F1            Go to workspace 1
-  Ctrl+F2            Go to workspace 2
-  Ctrl+F3            Go to workspace 3
-  Ctrl+F4            Go to workspace 4
+  Cmd+Option+Esc     Force quit (click the window)
+  Ctrl+Cmd+Q         Lock screen
+  Shift+Cmd+Q        Log out (asks to confirm)
 
 ───────────────────────────────────────────────────────
   DESKTOP ICONS (first time only)
