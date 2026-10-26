@@ -269,7 +269,7 @@ echo "  ╚═══════════════════════
 echo -e "${NC}\n"
 echo -e "  This script will set up your MacBook with everything"
 echo -e "  you need for a smooth Linux experience.\n"
-echo -e "  ${CYAN}Estimated time: 10–20 minutes depending on internet speed.${NC}"
+echo -e "  ${CYAN}This takes a while: large downloads (LibreOffice alone is ~300 MB) and a webcam driver build. Leave it running.${NC}"
 echo -e "  ${CYAN}Full log: $LOG_FILE${NC}\n"
 
 # ─────────────────────────────────────────────
@@ -1545,7 +1545,13 @@ mapfile -t RISTRETTO_MIMES < <(sed -n 's/^MimeType=//p' /usr/share/applications/
 set_default_app "org.xfce.ristretto.desktop" "${RISTRETTO_MIMES[@]}"
 print_ok "Default apps set"
 
-cat > "$ACTUAL_HOME/Desktop/KEYBOARD SHORTCUTS.txt" << 'SHORTCUTS'
+# The two guides live in one place the app menu can always reach (Dock mode
+# hides everything on the Desktop), and are copied to the Desktop for Classic
+# mode. Both are rewritten on every run, so they always match this script.
+GUIDE_DIR="$ACTUAL_HOME/.local/share/macbook-postinstall"
+mkdir -p "$GUIDE_DIR" "$ACTUAL_HOME/.local/share/applications"
+
+cat > "$GUIDE_DIR/KEYBOARD SHORTCUTS.txt" << 'SHORTCUTS'
 ═══════════════════════════════════════════════════════
   KEYBOARD SHORTCUTS — debian-intel-macbook-post-install
   Intel MacBooks · Debian 13 Trixie · XFCE
@@ -1655,7 +1661,87 @@ works as Cmd+<key>. Right Option is plain Alt.
 
 ═══════════════════════════════════════════════════════
 SHORTCUTS
-print_ok "Keyboard shortcuts cheat sheet saved to Desktop"
+
+cat > "$GUIDE_DIR/GETTING STARTED.txt" << 'GUIDE'
+═══════════════════════════════════════════════════════
+  GETTING STARTED — debian-intel-macbook-post-install
+  Intel MacBooks · Debian 13 Trixie · XFCE
+═══════════════════════════════════════════════════════
+
+  This file and KEYBOARD SHORTCUTS.txt are on your
+  Desktop and in the app menu (Cmd+Space, then type
+  "Getting Started" or "Keyboard Shortcuts").
+
+───────────────────────────────────────────────────────
+  FIRST THINGS TO CHECK
+───────────────────────────────────────────────────────
+  1. If the script said a reboot is needed, reboot.
+  2. WiFi connects, and the webcam works (open Cheese).
+  3. Keys work as on a Mac: Cmd+C / Cmd+V copy and
+     paste, Cmd+Q quits an app. Cmd+Tab is next tab,
+     Option+Tab switches apps.
+  4. First click on a Desktop icon asks "Untrusted
+     application launcher" -- click Launch, once.
+
+───────────────────────────────────────────────────────
+  EVERYDAY THINGS
+───────────────────────────────────────────────────────
+  Find an app        Cmd+Space or F4, then type its name
+  Light or dark      Settings > Appearance (Style and
+                     Icons) and Settings > Window Manager
+  Default apps       Settings > Default Applications
+                     (text opens in Mousepad, images in
+                     Ristretto unless you chose otherwise)
+  Remove an app      sudo apt remove <package>
+  Updates            Security updates install themselves.
+                     For everything else:
+                     sudo apt update && sudo apt full-upgrade
+
+───────────────────────────────────────────────────────
+  RUNNING THE SCRIPTS AGAIN
+───────────────────────────────────────────────────────
+  Both scripts are safe to re-run: they skip what is
+  already done and only redo what changed. Re-running
+  the theming script resets the dock settings and the
+  wallpaper colour; your own Desktop launchers and the
+  apps you pinned to the dock stay.
+
+───────────────────────────────────────────────────────
+  IF SOMETHING GOES WRONG
+───────────────────────────────────────────────────────
+  Undo the whole setup run (snapshot taken before it
+  changed anything):
+      sudo timeshift --restore
+
+  The full log of the last run:
+      ~/.local/state/macbook-postinstall/latest.log
+
+  Everything else, including known problems and fixes:
+      github.com/willardcsoriano/debian-intel-macbook-post-install
+
+═══════════════════════════════════════════════════════
+GUIDE
+
+# Menu entries open the master copies with the default text editor.
+make_guide_entry() {
+    local id=$1 name=$2 file=$3
+    cat > "$ACTUAL_HOME/.local/share/applications/${id}.desktop" << GUIDE_ENTRY
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=$name
+Comment=debian-intel-macbook-post-install guide
+Exec=xdg-open "$GUIDE_DIR/$file"
+Icon=help-contents
+Terminal=false
+Categories=Utility;Documentation;
+GUIDE_ENTRY
+}
+make_guide_entry "macbook-postinstall-getting-started" "Getting Started" "GETTING STARTED.txt"
+make_guide_entry "macbook-postinstall-keyboard-shortcuts" "Keyboard Shortcuts" "KEYBOARD SHORTCUTS.txt"
+
+cp "$GUIDE_DIR/GETTING STARTED.txt" "$GUIDE_DIR/KEYBOARD SHORTCUTS.txt" "$ACTUAL_HOME/Desktop/"
+print_ok "Getting Started guide and keyboard shortcuts saved to Desktop and the app menu"
 
 # ─────────────────────────────────────────────
 # PANEL SETUP
