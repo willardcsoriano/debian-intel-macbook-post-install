@@ -37,33 +37,48 @@ fi
 CURATED_APPS=(
     "firefox-esr"
     "thunar org.xfce.thunar"
-    "org.gnome.Terminal gnome-terminal"
-    "org.gnome.gedit gedit"
-    "simple-scan"
-    "vlc"
-    "org.flameshot.Flameshot flameshot"
-    "blueman-manager"
-    "xfce4-taskmanager"
-    "xfce4-settings-manager"
-    "htop"
+    "xfce4-terminal"
+    "org.xfce.mousepad mousepad"
+    "code"
     "libreoffice-writer"
     "libreoffice-calc"
     "libreoffice-impress"
-    "mtpaint"
-    "code"
-    "org.gnome.Calculator gnome-calculator"
-    "org.gnome.baobab baobab"
-    "xfce4-display-settings"
-    "gdebi gdebi-gtk"
-    "xfce4-clipman"
+    "vlc"
+    "org.xfce.ristretto ristretto"
+    "org.flameshot.Flameshot flameshot"
+    "galculator"
+    "xfce4-taskmanager"
+    "blueman-manager"
+    "xfce-settings-manager xfce4-settings-manager"
 )
+
+# Launchers earlier versions of this script placed on the Desktop or in the
+# dock. They stay in the app menu; re-runs remove them so the result matches
+# CURATED_APPS. Only these names (plus CURATED_APPS and system-info) are ever
+# removed -- launchers the user added themselves are left alone.
+RETIRED_APPS=(
+    org.gnome.Terminal gnome-terminal org.gnome.gedit gedit simple-scan htop
+    mtpaint gdebi gdebi-gtk xfce4-clipman org.gnome.Calculator gnome-calculator
+    org.gnome.baobab baobab xfce4-display-settings
+)
+
+# Removes every launcher this script manages from a directory: <name>.<ext>
+# for each curated, retired, and generated name.
+remove_managed_launchers() {
+    local dir=$1 ext=$2 entry cand
+    for entry in "${CURATED_APPS[@]}" "${RETIRED_APPS[@]}" system-info; do
+        for cand in $entry; do
+            rm -f "$dir/${cand}.${ext}"
+        done
+    done
+}
 
 # Generates the System Info launcher when fastfetch and a terminal are both
 # available. Returns the launcher path on stdout (empty if not generated).
 generate_sysinfo_launcher() {
     local sysinfo_src="$HOME/.local/share/applications/system-info.desktop"
     command -v fastfetch &>/dev/null || return 0
-    command -v gnome-terminal &>/dev/null || return 0
+    command -v xfce4-terminal &>/dev/null || return 0
     mkdir -p "$HOME/.local/share/applications"
     cat > "$sysinfo_src" << 'EOF'
 [Desktop Entry]
@@ -71,7 +86,7 @@ Version=1.0
 Type=Application
 Name=System Info
 Comment=Show system information
-Exec=gnome-terminal -- fastfetch
+Exec=xfce4-terminal --hold -x fastfetch
 Icon=computer
 Terminal=false
 Categories=System;
@@ -98,6 +113,9 @@ place_desktop_icons() {
 
     local desktop_dir="$HOME/Desktop"
     mkdir -p "$desktop_dir"
+    for entry in "${RETIRED_APPS[@]}"; do
+        rm -f "$desktop_dir/${entry}.desktop"
+    done
 
     for entry in "${CURATED_APPS[@]}"; do
         for cand in $entry; do
@@ -151,8 +169,8 @@ if [[ "$MODE" == "3" ]]; then
     rm -rf ~/.themes/WhiteSur* ~/.local/share/themes/WhiteSur*
     rm -rf ~/.icons/WhiteSur* ~/.local/share/icons/WhiteSur*
 
-    # Remove generated desktop and launcher files
-    rm -f ~/Desktop/*.desktop
+    # Remove the desktop launchers this script placed (not the user's own)
+    remove_managed_launchers ~/Desktop desktop
     rm -f ~/.local/share/applications/system-info.desktop
 
     # Remove Plank config and autostart entry
@@ -373,7 +391,8 @@ ProcessWithUrgency=true
 EOF
 
     # No launchers in classic mode — Plank shows open apps naturally
-    rm -f ~/.config/plank/dock1/launchers/*.dockitem
+    remove_managed_launchers ~/.config/plank/dock1/launchers dockitem
+    rm -f ~/.config/plank/dock1/launchers/zzz-trash.dockitem
 
 fi
 
@@ -382,9 +401,10 @@ fi
 # ─────────────────────────────────────────────
 if [[ "$MODE" == "2" ]]; then
 
-    # Hide desktop icons and clear shortcuts
+    # Hide desktop icons and remove the launchers this script placed there
+    # (launchers the user made stay, just hidden)
     xfconf-query -c xfce4-desktop -p /desktop-icons/style --create -t int -s 0
-    rm -f ~/Desktop/*.desktop
+    remove_managed_launchers ~/Desktop desktop
 
     # Plank settings — transparent theme, all apps as launchers
     seed_plank_config
@@ -409,7 +429,9 @@ EOF
 
     # Populate Plank with the same curated list used for Mode 1 desktop icons.
     mkdir -p ~/.config/plank/dock1/launchers
-    rm -f ~/.config/plank/dock1/launchers/*.dockitem
+    # Replace only the dock items this script manages; items the user pinned
+    # by hand stay in the dock.
+    remove_managed_launchers ~/.config/plank/dock1/launchers dockitem
 
     # Sort= positions each item left-to-right; lower = leftmost. Increment as
     # we place each launcher so curated order is preserved regardless of
