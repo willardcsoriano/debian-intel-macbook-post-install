@@ -7,6 +7,19 @@
 set -uo pipefail
 
 # ─────────────────────────────────────────────
+# OPTIONS
+# ─────────────────────────────────────────────
+# --no-snapshot: skip the pre-change Timeshift snapshot, for a quick re-run by
+# someone who knows they don't need an undo point for it.
+NO_SNAPSHOT=false
+for arg in "$@"; do
+    case "$arg" in
+        --no-snapshot) NO_SNAPSHOT=true ;;
+        *) echo "Unknown option: $arg (supported: --no-snapshot)" >&2; exit 2 ;;
+    esac
+done
+
+# ─────────────────────────────────────────────
 # COLORS
 # ─────────────────────────────────────────────
 RED='\033[0;31m'
@@ -409,13 +422,59 @@ else
     print_skip "Timeshift already configured"
 fi
 
-if [ -f "$TIMESHIFT_CONF" ]; then
+# A snapshot takes minutes on every run, not just the first: rsync checks every
+# system file even when little changed. So:
+# - One per version of this script. The snapshot exists to undo what the script
+#   changes, and re-running the same version changes nothing new, so the one
+#   taken before that version first ran still covers it. The version is a hash
+#   of this file; run from a pipe (bash <(curl ...)) the file can't be re-read,
+#   so every run snapshots.
+# - Only two kept: the oldest (closest to before this script first ran) and the
+#   newest. Older ones in between are deleted. Snapshots you take yourself are
+#   never touched: the script's own are found by their comment, on the root
+#   filesystem where the config above stores them. If that folder can't be
+#   read, nothing is skipped or deleted.
+SNAP_COMMENT="Before debian-intel-macbook-post-install setup.sh"
+SNAP_DIR="/timeshift/snapshots"
+SCRIPT_SUM=""
+[ -f "$0" ] && SCRIPT_SUM=$(sha256sum "$0" | cut -c1-12)
+
+# This script's snapshots, oldest first (their names are timestamps).
+script_snapshots() {
+    local info
+    for info in "$SNAP_DIR"/*/info.json; do
+        [ -f "$info" ] || continue
+        grep -qF "\"comments\" : \"$SNAP_COMMENT" "$info" && basename "$(dirname "$info")"
+    done | sort
+}
+
+LAST_SNAP=$(script_snapshots | tail -n 1)
+if [ "$NO_SNAPSHOT" = true ]; then
+    print_warning "Snapshot skipped (--no-snapshot) — this run can't be undone with Timeshift"
+elif [ ! -f "$TIMESHIFT_CONF" ]; then
+    :
+elif [ -n "$SCRIPT_SUM" ] && [ -n "$LAST_SNAP" ] && grep -qF "(script $SCRIPT_SUM)" "$SNAP_DIR/$LAST_SNAP/info.json"; then
+    print_ok "This version of the script already has an undo point (snapshot $LAST_SNAP) — not taking another"
+else
     print_info "Creating snapshot (takes a few minutes: Timeshift checks every system file)..."
     # No --tags: on-demand (O) is the default, and Timeshift 24.06 rejects an
     # explicit "--tags O" (its validator lists O as valid but doesn't accept it).
-    if TS_OUT=$(sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" 2>&1); then
+    if TS_OUT=$(sudo timeshift --create --comments "$SNAP_COMMENT${SCRIPT_SUM:+ (script $SCRIPT_SUM)}" 2>&1); then
         printf '%s\n' "$TS_OUT" | tr '\r' '\n' | grep -v '% complete' >>"$LOG_FILE"
         print_ok "Snapshot created — undo this entire run with: sudo timeshift --restore"
+        mapfile -t SNAPS < <(script_snapshots)
+        if [ "${#SNAPS[@]}" -gt 2 ]; then
+            PRUNE_FAILED=false
+            for snap in "${SNAPS[@]:1:${#SNAPS[@]}-2}"; do
+                if sudo timeshift --delete --snapshot "$snap" --scripted --yes >>"$LOG_FILE" 2>&1; then
+                    log "Deleted older setup snapshot $snap"
+                else
+                    PRUNE_FAILED=true
+                    print_warning "Could not delete older setup snapshot $snap (see $LOG_FILE)"
+                fi
+            done
+            [ "$PRUNE_FAILED" = false ] && print_ok "Older setup snapshots removed — kept the first (${SNAPS[0]}) and this run's"
+        fi
     else
         printf '%s\n' "$TS_OUT" | tr '\r' '\n' | grep -v '% complete' >>"$LOG_FILE"
         TS_ERR=$(printf '%s\n' "$TS_OUT" | grep -m1 '^E:' || true)
