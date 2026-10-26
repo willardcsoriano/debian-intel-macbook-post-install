@@ -75,6 +75,15 @@ print_warning() { echo -e "${YELLOW}  ⚠ $1${NC}"; }
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE"; }
 
+# Report a service step by what systemd says, not by having run the command.
+check_active() {
+    if systemctl is-active --quiet "$1"; then
+        print_ok "$2"
+    else
+        print_warning "$1 is not running — details: sudo journalctl -u $1 -n 30"
+    fi
+}
+
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
 install_pkg() {
     local pkg=$1
@@ -456,7 +465,7 @@ else
     install_pkg "zram-tools" "zram-tools (compressed RAM swap)"
     if systemctl list-unit-files zramswap.service &>/dev/null; then
         sudo systemctl enable --now zramswap.service >>"$LOG_FILE" 2>&1 || true
-        print_ok "Compressed RAM swap active (survives reboot, no disk wear)"
+        check_active zramswap.service "Compressed RAM swap active (survives reboot, no disk wear)"
     else
         print_warning "zram-tools installed but zramswap.service not found — swap may need a manual check"
     fi
@@ -498,7 +507,7 @@ fi
 # Installing fwupd doesn't auto-refresh metadata; the timer does
 if systemctl list-unit-files fwupd-refresh.timer &>/dev/null; then
     sudo systemctl enable --now fwupd-refresh.timer >>"$LOG_FILE" 2>&1 || true
-    print_ok "Firmware metadata refresh timer enabled"
+    check_active fwupd-refresh.timer "Firmware metadata refresh timer enabled"
 fi
 
 # apt-daily-upgrade.service ships with ConditionACPower=true, so it silently
@@ -568,7 +577,7 @@ install_pkg "cups" "CUPS printing system"
 
 sudo systemctl enable cups >>"$LOG_FILE" 2>&1 || true
 sudo systemctl start cups >>"$LOG_FILE" 2>&1 || true
-print_ok "Printing service enabled"
+check_active cups "Printing service enabled"
 
 # ─────────────────────────────────────────────
 # VISUAL STUDIO CODE
@@ -698,7 +707,7 @@ fi
 
 sudo systemctl enable NetworkManager >>"$LOG_FILE" 2>&1 || true
 sudo systemctl start NetworkManager >>"$LOG_FILE" 2>&1 || true
-print_ok "NetworkManager is running — WiFi will connect automatically on boot"
+check_active NetworkManager "NetworkManager is running — WiFi will connect automatically on boot"
 
 # polkit (authority / safety layer)
 # Debian lets a local, *active* sudo/netdev user change system network
