@@ -12,8 +12,8 @@ NetworkManager, macOS-style keyboard remapping via keyd, working
 suspend/resume (s2idle plus lid suspend-then-hibernate), a bcm5974 touchpad
 resume fix, the reverse-engineered FaceTime HD webcam and microphone
 drivers, and a curated set of everyday applications. An optional theming
-script gives XFCE a macOS-style look — the WhiteSur dark theme and a Plank
-dock — with Classic, Dock, and Revert modes. Both scripts are idempotent and
+script gives XFCE a macOS-style look — the WhiteSur theme in light and dark
+and a Plank dock — with Classic, Dock, and Revert modes. Both scripts are idempotent and
 safe to re-run. Apple Silicon Macs are not supported; use the Asahi Linux
 project instead.
 
@@ -21,10 +21,27 @@ project instead.
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
-- [⚠️ Compatibility Notice](#️-compatibility-notice)
-- [The Story So Far](#the-story-so-far)
-- [Why Debian on an Intel MacBook](#why-debian-on-an-intel-macbook)
-- [Who This Is For](#who-this-is-for)
+- [Is This for You?](#is-this-for-you)
+  - [Why Debian on an Intel MacBook](#why-debian-on-an-intel-macbook)
+  - [⚠️ Compatibility Notice](#️-compatibility-notice)
+- [Before You Start](#before-you-start)
+  - [1. Working internet connection](#1-working-internet-connection)
+  - [2. Set up sudo for your user](#2-set-up-sudo-for-your-user)
+  - [The safety snapshot](#the-safety-snapshot)
+- [What to Expect While It Runs](#what-to-expect-while-it-runs)
+  - [What the symbols mean](#what-the-symbols-mean)
+  - [Questions it may ask](#questions-it-may-ask)
+  - [The log file](#the-log-file)
+  - [The summary at the end](#the-summary-at-the-end)
+  - [Running it again](#running-it-again)
+- [After It Finishes](#after-it-finishes)
+- [Making It Yours](#making-it-yours)
+  - [Theming (optional)](#theming-optional)
+  - [Default apps](#default-apps)
+  - [Removing apps you don't want](#removing-apps-you-dont-want)
+  - [Keeping it up to date](#keeping-it-up-to-date)
+- [When Something Goes Wrong](#when-something-goes-wrong)
+  - [Microsoft Teams](#microsoft-teams)
 - [What This Script Installs and Configures](#what-this-script-installs-and-configures)
   - [Pre-Change Safety Snapshot](#pre-change-safety-snapshot)
   - [Swap / Memory Safety Net](#swap--memory-safety-net)
@@ -44,15 +61,11 @@ project instead.
   - [Fonts](#fonts)
   - [App Finder Launcher Fix](#app-finder-launcher-fix)
   - [Desktop Shortcuts](#desktop-shortcuts)
+  - [Getting Started Guide](#getting-started-guide)
   - [Keyboard Shortcuts Cheat Sheet](#keyboard-shortcuts-cheat-sheet)
-- [Prerequisites](#prerequisites)
-  - [1. Working internet connection](#1-working-internet-connection)
-  - [2. Set up sudo for your user](#2-set-up-sudo-for-your-user)
-- [Installation](#installation)
-- [Theming (optional)](#theming-optional)
-- [Microsoft Teams](#microsoft-teams)
 - [Verified Test Environment](#verified-test-environment)
 - [Known Limitations](#known-limitations)
+- [The Story So Far](#the-story-so-far)
 - [Related](#related)
 - [Version History](#version-history)
 - [Contributing](#contributing)
@@ -60,7 +73,7 @@ project instead.
 
 ## Quick Start
 
-> Make sure you have read [Prerequisites](#prerequisites) first — sudo
+> Make sure you have read [Before You Start](#before-you-start) first — sudo
 > must be configured and you need a working internet connection.
 
 **Setup script** (required):
@@ -73,7 +86,32 @@ project instead.
 
 ---
 
-## ⚠️ Compatibility Notice
+**Part 1 — Using it.** Everything you need to install, run and live with
+the setup, in plain language. The technical detail is in Part 2 further down.
+
+## Is This for You?
+
+This script is for users who have:
+
+1. An Intel MacBook with no usable macOS (end of life, or removed)
+2. Debian GNU/Linux 13 (Trixie) installed — minimal, no desktop
+3. Broadcom WiFi working via the offline repo below
+4. Internet connected via wpa_supplicant and dhcpcd
+5. A terminal and nothing else
+
+If you have not yet gotten WiFi working, start [here](https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline) first.
+
+### Why Debian on an Intel MacBook
+
+macOS Monterey — the last macOS version supporting most Intel MacBooks —
+reached end of life on September 16, 2024 when Apple released Sequoia.
+Security updates have stopped. On top of that, Monterey consumes roughly
+4GB of RAM at idle on 8GB hardware, leaving almost nothing available for
+actual work.
+
+Debian Trixie at idle uses under 500MB. After running this post-install script, idle RAM rises to approximately 1GB — XFCE, NetworkManager, Bluetooth, and the FaceTime driver all add overhead that a terminal-only install does not have. That is still well under a quarter of what Monterey uses on the same hardware, and you now have a fully functional desktop.
+
+### ⚠️ Compatibility Notice
 
 **This script is for Intel MacBooks only.**
 
@@ -97,54 +135,307 @@ MacBooks from 2012–2019 running Debian 13 Trixie.
 
 ---
 
-## The Story So Far
+## Before You Start
 
-If you just came from the [offline WiFi kit](https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline), you have accomplished something genuinely difficult — you installed Linux on a MacBook with no internet access and got WiFi working entirely from a USB stick. That is not a beginner task and you should feel good about it.
+You need two things in place, and it helps to know about the safety net.
 
-But right now you are staring at a terminal. No desktop, no browser, no
-way to adjust brightness, no GUI tools, no keyboard shortcuts that feel
-familiar coming from macOS. The Cmd key does nothing useful. The function
-keys do nothing. The FaceTime camera does not work. The mic may not work.
+**If you haven't installed Debian yet:** choose *Guided — use entire disk and
+set up encrypted LVM* in the installer's partitioning step. A laptop gets lost
+and stolen, and without disk encryption anyone holding it can read your files.
+It can only be chosen at install time; this script can't add it afterwards.
 
-This script fixes all of that in one command.
+### 1. Working internet connection
+
+Confirm with:
+
+    ping -c 3 google.com
+
+The script checks this itself and stops with a message if it finds no
+connection.
+
+### 2. Set up sudo for your user
+
+`sudo` is how a regular user runs a command with administrator rights — the
+Linux equivalent of typing your password into a macOS admin prompt.
+
+Debian does not configure sudo for regular users by default. This must be
+done once before running the script. Do it while you are still in the
+terminal from the Broadcom install.
+
+Switch to root:
+
+    su -
+
+Add your user to the sudo group (replace yourusername with your actual
+username, for example willard):
+
+    usermod -aG sudo yourusername
+
+Exit root and log out:
+
+    exit
+    logout
+
+Log back in as your regular user. Confirm sudo works:
+
+    sudo echo "sudo is working"
+
+If you see "sudo is working" you are ready.
+
+Run the script as your regular user, not as root — it refuses to start as
+root, and stops with the fix if sudo is not set up yet.
+
+### The safety snapshot
+
+Before it changes anything, the script installs Timeshift (a system restore
+tool, similar in spirit to Time Machine) and takes a snapshot of the system.
+There is no question to answer. It takes a few minutes, because Timeshift
+checks every system file each time. If the run leaves your Mac in a bad state,
+you can roll the whole thing back with:
+
+    sudo timeshift --restore
+
+This is a snapshot of the system (not your home folder) taken before the
+script changes anything, not a recurring backup of your files. See [Pre-Change Safety Snapshot](#pre-change-safety-snapshot)
+for the detail.
 
 ---
 
-## Why Debian on an Intel MacBook
+## What to Expect While It Runs
 
-macOS Monterey — the last macOS version supporting most Intel MacBooks —
-reached end of life on September 16, 2024 when Apple released Sequoia.
-Security updates have stopped. On top of that, Monterey consumes roughly
-4GB of RAM at idle on 8GB hardware, leaving almost nothing available for
-actual work.
+The script works through one section at a time — each starts with a blue
+banner naming it — and prints a line for every step.
 
-Debian Trixie at idle uses under 500MB. After running this post-install script, idle RAM rises to approximately 1GB — XFCE, NetworkManager, Bluetooth, and the FaceTime driver all add overhead that a terminal-only install does not have. That is still well under a quarter of what Monterey uses on the same hardware, and you now have a fully functional desktop.
+### What the symbols mean
+
+| Symbol | Colour | Meaning |
+|---|---|---|
+| ✔ | green | Done — installed or configured just now |
+| ⊘ | yellow | Already done on an earlier run, so skipped |
+| → | cyan | Working on it (for example "Installing VLC...") |
+| ⚠ | yellow | Worth knowing, but the run carries on |
+| ✘ | red | That step failed — the run carries on and lists it at the end |
+
+### Questions it may ask
+
+Most runs ask very little. Depending on your machine you may see:
+
+- **Your password**, once near the start, so it can make system changes.
+- **"Continue anyway? [y/N]"** if the system does not look like Debian 13.
+  Pressing Enter means no and stops the script.
+- **"Continue anyway? [y/N]"** if you are not inside a desktop session — for
+  example on a first run from the bare terminal. It warns that XFCE settings
+  (shortcuts, power, tiling) will not be saved. Answer `y` to carry on; you
+  can run the script again later from a terminal inside the desktop to apply
+  them.
+- **"Run a full system upgrade now? [y/N]"** near the end, only when Debian
+  has updates waiting. Pressing Enter skips it, which is safe — see
+  [System Upgrade (optional)](#system-upgrade-optional).
+- **"Reboot now? [Y/n]"** at the very end, only when a reboot is needed.
+  Here Enter means yes and restarts the Mac straight away; type `n` to
+  reboot later yourself.
+
+### The log file
+
+Everything the script does, including the full output it hides from the
+screen, goes into a log file. Its path is printed at the start and again at
+the end. It lives at:
+
+    ~/.local/state/macbook-postinstall/setup-<date>-<time>.log
+
+`~` means your home folder. `latest.log` in the same folder always points at
+the most recent run, and only the five most recent runs are kept. If that
+folder can't be written, the log goes to
+`/tmp/macbook-postinstall-<date>-<time>.log` instead.
+
+### The summary at the end
+
+When it finishes, the script prints an **Installation Summary**: what it
+installed, what was already there and skipped, and — only if something went
+wrong — what failed, with a pointer to the log. A **System status** line
+then says whether Debian is fully up to date, was upgraded, or has updates
+you chose not to apply. Last comes a reminder that `sudo timeshift --restore`
+undoes the whole run, and the reboot question if a reboot is needed.
+
+### Running it again
+
+Re-running is safe. The script checks each step first and skips what is
+already done (the ⊘ lines), so a second run only finishes what was missing.
+A re-run of the same version of the script doesn't take another safety
+snapshot: the one from its first run still covers everything it changes. To
+skip the snapshot on purpose, run the script with `--no-snapshot`.
 
 ---
 
-## Who This Is For
+## After It Finishes
 
-This script is for users who have:
+A short checklist for your first session on the new desktop:
 
-1. An Intel MacBook with no usable macOS (end of life, or removed)
-2. Debian GNU/Linux 13 (Trixie) installed — minimal, no desktop
-3. Broadcom WiFi working via the offline repo below
-4. Internet connected via wpa_supplicant and dhcpcd
-5. A terminal and nothing else
-
-If you have not yet gotten WiFi working, start [here](https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline) first.
+1. **Reboot if it asked you to.** The desktop, WiFi manager, keyboard
+   remapping and webcam driver only take effect after a restart.
+2. **Check WiFi.** Your saved WiFi password is picked up automatically, and a
+   WiFi icon in the panel lets you switch networks. See
+   [WiFi Management](#wifi-management).
+3. **Check the webcam and microphone.** Open **Cheese** from the app menu —
+   it is installed for exactly this quick test. See
+   [Webcam and Microphone](#webcam-and-microphone).
+4. **Click Launch once per desktop icon.** The first time you open a desktop
+   shortcut, XFCE shows "Untrusted application launcher". Click **Launch**;
+   it will not ask again for that icon.
+5. **Use the keys as you would on a Mac.** Cmd+C, Cmd+V, Cmd+Q, Option+arrows
+   and the rest behave as on macOS, and Cmd+Space opens the App Finder, much
+   like Spotlight. One difference: Cmd+Tab moves to the next tab and
+   Option+Tab switches apps.
+6. **Read the two help files.** `GETTING STARTED.txt` and
+   `KEYBOARD SHORTCUTS.txt` are on your Desktop, and also in the app menu
+   (Cmd+Space / App Finder) as **Getting Started** and **Keyboard
+   Shortcuts**.
 
 ---
+
+## Making It Yours
+
+### Theming (optional)
+
+Vanilla XFCE is functional but plain. If you want a macOS-style look — the
+WhiteSur GTK theme, macOS-style window controls on the left, and a
+Plank dock at the bottom — run this after the setup script completes and
+you have rebooted into the desktop:
+
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/themes.sh)
+
+You will be prompted to choose a mode:
+
+- **Classic** — desktop icons visible, Plank shows open apps only
+- **Dock** — clean empty desktop, all apps pinned in Plank
+- **Revert** — removes all themes and restores vanilla XFCE
+
+Both the light and dark variants of WhiteSur are installed, and dark is
+applied. To switch at any time, with no re-run and no logout:
+
+| Setting | Dark | Light |
+|---|---|---|
+| Settings → Appearance → Style | WhiteSur-Dark | WhiteSur-Light |
+| Settings → Appearance → Icons | WhiteSur-dark | WhiteSur-light |
+| Settings → Window Manager → Style | WhiteSur-Dark | WhiteSur-Light |
+
+The `-solid` variants drop the translucency. The terminal follows the theme.
+
+If you change your mind later, just run the script again and pick a
+different mode or choose Revert. Re-running replaces only the desktop
+launchers and dock items the script placed itself; anything you pinned to the
+dock or put on the Desktop by hand stays. Re-running does reset the Plank
+dock settings and the solid wallpaper colour to the script's defaults.
+
+### Default apps
+
+Plain text files open in **Mousepad** (a simple editor, like TextEdit) and
+images open in **Ristretto** (a light image viewer). The script sets these
+only where you hadn't already chosen a default, so a choice you made
+yourself wins — including on a re-run.
+
+### Removing apps you don't want
+
+Anything the script installed can be removed with:
+
+    sudo apt remove <package-name>
+
+The package names are listed in
+[What This Script Installs and Configures](#what-this-script-installs-and-configures).
+Earlier versions of this script installed gnome-terminal and the gedit text
+editor; if your machine has them, `sudo apt remove gnome-terminal gedit`
+clears them out.
+
+### Keeping it up to date
+
+Security updates install themselves daily, on battery as well as on mains
+power, and you are told when one needs a reboot — nothing restarts on its
+own. To bring every package up to the latest Debian 13 point release
+yourself, run:
+
+    sudo apt update && sudo apt full-upgrade
+
+See [Automatic Security Updates](#automatic-security-updates) and
+[System Upgrade (optional)](#system-upgrade-optional) for the detail.
+
+---
+
+## When Something Goes Wrong
+
+- **A step shows ✘ or appears under "Failed" in the summary.** Open the log
+  (`~/.local/state/macbook-postinstall/latest.log`) for the details, then run
+  the script again — it skips everything already done and retries the rest.
+- **The Ctrl+Alt+S screenshot shortcut, lid/power behaviour or window
+  snapping isn't set.**
+  The script was probably run outside the desktop (it warned you). Run it
+  again from a terminal inside the desktop.
+- **"Snapshot creation failed: …".** The run carried on without one. The
+  message shows Timeshift's own error; the full output is in the log.
+- **The whole run left things worse.** Roll back with
+  `sudo timeshift --restore`.
+- **WiFi or the webcam stopped working after a system upgrade.** A new
+  kernel needs a reboot before the drivers run on it; reboot, then check
+  both again.
+- **The webcam is flaky.** The FaceTime HD driver is a community
+  reverse-engineered driver, not officially supported — see
+  [Known Limitations](#known-limitations).
+- **The trackpad is dead after opening the lid.** The script installs a fix
+  for this; see [MacBook Touchpad Resume Fix](#macbook-touchpad-resume-fix).
+- **F3 doesn't look quite like Mission Control, or Ctrl+Alt+S does nothing
+  in a plain terminal.** Both are known limitations — see
+  [Known Limitations](#known-limitations).
+- **The camera or sign-in fails in Microsoft Teams.** See below.
+
+### Microsoft Teams
+
+Microsoft ships no native Teams client for Debian. Use the web app at
+`teams.microsoft.com` in **Chromium**, which `setup.sh` installs. Nothing
+else to install, and it updates itself.
+
+Why Chromium rather than a desktop client: when a call starts, Teams asks
+the camera for a specific resolution, and the reverse-engineered
+`facetimehd` driver only supports a narrow, fixed set of resolutions. In the
+unofficial `teams-for-linux` Electron client that mismatch makes the camera
+fail at call start even though it works in Cheese and Zoom; Chromium
+negotiates the camera more permissively and the camera works. Full writeup:
+[dotfiles/notes/teams-for-linux-camera-not-working.md](https://github.com/willardcsoriano/dotfiles/blob/master/notes/teams-for-linux-camera-not-working.md).
+
+If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the browser. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
+
+**If you installed `teams-for-linux` with the `teams.sh` script from v1.9.x**,
+remove the client, its apt repository and its signing key, since that
+repository is not covered by automatic updates:
+
+    sudo apt purge -y teams-for-linux
+    sudo rm -f /etc/apt/sources.list.d/teams-for-linux-packages.sources /etc/apt/keyrings/teams-for-linux.asc
+    sudo apt update
+    rm -rf ~/.config/teams-for-linux "$HOME/Desktop/Microsoft Teams.desktop"
+
+---
+
+**Part 2 — Technical reference.** The detail behind Part 1: exactly what the
+script installs and changes, and why.
 
 ## What This Script Installs and Configures
 
 ### Pre-Change Safety Snapshot
-- timeshift — creates one on-demand system snapshot before any other step
-  runs, no prompt, no schedule beyond that single snapshot. This script
-  rewrites GRUB, kernel parameters, logind, polkit, and the network stack —
-  if anything goes wrong on your specific hardware, this entire run can be
-  undone with `sudo timeshift --restore`. Configured for on-demand
-  snapshots only; it does not set up recurring scheduled backups.
+- timeshift — creates an on-demand system snapshot before any other step
+  runs, with no prompt. This script rewrites GRUB, kernel parameters, logind,
+  polkit, and the network stack — if anything goes wrong on your specific
+  hardware, the run can be undone with `sudo timeshift --restore`. Configured
+  for on-demand snapshots only; it does not set up recurring scheduled
+  backups.
+- One snapshot per version of the script. Each snapshot records a hash of
+  `setup.sh`; when the newest one already belongs to this version, the run
+  says so and doesn't take another, because re-running the same version
+  changes nothing new. Run from a pipe (`bash <(curl …)`, as in the Quick
+  Start) the script can't read itself to hash, so every run snapshots.
+- Two kept. After a new snapshot, the script deletes its own snapshots
+  except the oldest (the closest to before it first ran) and the newest.
+  Snapshots you take yourself are never touched: the script finds its own by
+  their description.
+- `--no-snapshot` skips it, for a quick re-run when you don't need an undo
+  point.
 
 ### Swap / Memory Safety Net
 - zram-tools — compressed RAM swap, enabled automatically whenever no swap
@@ -165,6 +456,16 @@ If you have not yet gotten WiFi working, start [here](https://github.com/willard
 - fwupd + fwupd-refresh.timer — UEFI and firmware updates via LVFS, refreshed
   automatically on a timer
 - AppArmor verified active (ships enabled on Debian 13, warns if disabled)
+- ufw firewall — blocks incoming connections and allows everything outgoing,
+  with mDNS left open so printers and other devices are still found. A laptop
+  joins networks it doesn't control, and anything listening on all interfaces
+  is otherwise reachable by everyone on them. Open a port with
+  `sudo ufw allow <port>`. It is turned on only by the run that installs it; if
+  ufw is already installed but off, the script leaves it off. **Docker
+  caveat:** Docker writes its own firewall rules that bypass ufw, so a
+  container published with `-p 8080:80` is still reachable from the network.
+  Publish to localhost instead (`-p 127.0.0.1:8080:80`) unless you mean to share
+  it.
 - A systemd drop-in clearing `apt-daily-upgrade.service`'s shipped
   `ConditionACPower=true` — without this, the daily security-update check
   silently skips every time the laptop is running on battery, which for a
@@ -190,9 +491,12 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   Linux in the first place
 
 ### Terminal
-- gnome-terminal — modern terminal with proper copy-paste, right-click menu,
-  and mouse support. The default xterm that ships with Debian minimal is
-  essentially unusable for everyday work.
+- xfce4-terminal — XFCE's own terminal, with copy-paste, a right-click menu
+  and mouse support. It comes with xfce4-goodies, so nothing extra is
+  installed; the script makes it the default for Ctrl+Alt+T, Thunar's "Open
+  Terminal Here" and the system-wide `x-terminal-emulator`. Earlier versions
+  installed gnome-terminal before XFCE was in place; a machine that has it can
+  remove it with `sudo apt remove gnome-terminal`.
 - Bracketed paste mode disabled system-wide so pasting commands into the
   terminal works without escape code artifacts
 
@@ -200,8 +504,8 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
 - firefox-esr — Mozilla Firefox (default browser)
 - chromium — installed alongside Firefox because it is the browser the
   FaceTime HD camera works with in Microsoft Teams (`teams.microsoft.com`,
-  see the Microsoft Teams section below)
-- gedit — simple text editor, similar feel to TextEdit on macOS
+  see [Microsoft Teams](#microsoft-teams) above)
+- galculator — a light calculator (Debian's XFCE install has none)
 - cups — printing system, works with most USB and network printers
 
 ### Code Editor
@@ -213,6 +517,11 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
 ### Media and Utilities
 - flameshot — screenshot tool with annotation support. Shortcut: Ctrl+Alt+S
 - xfce4-screenshooter — basic screenshot tool bound to the Print key
+- mousepad — XFCE's text editor, similar feel to TextEdit on macOS, and the
+  default for plain text files (which otherwise open in LibreOffice Writer)
+- ristretto — XFCE's image viewer, and the default for images (which
+  otherwise open in ImageMagick's bare viewer). Defaults are set only where
+  you haven't chosen one yourself.
 - file-roller — archive manager for zip, tar, and other formats
 - vlc — media player for video and audio
 - blueman — Bluetooth manager with GUI tray applet
@@ -248,26 +557,89 @@ F keys behave unexpectedly, and text navigation shortcuts from macOS do not
 work. This script fixes all of it.
 
 - keyd — kernel-level key remapping, works before the desktop even loads
+- keyd-application-mapper — keyd's per-app companion, so the terminal gets its
+  own Mac keys. Debian packages keyd but not this script, so it is fetched from
+  keyd upstream at the version Debian ships (v2.5.0) and checksum-verified, and
+  run through a private `keyd` name shim (Debian renamed the binary to
+  `keyd.rvaiya`; see [Debian bug #1098982](https://bugs.debian.org/1098982)).
+  It talks to keyd through the `keyd` group's socket, so your user is added to
+  that group. Treat that group like sudo; you already are a sudoer.
+- python3-xlib — lets the mapper see which window is focused
 - brightness-udev — backlight write permissions without sudo
 - rofi — window switcher used as an F3 Mission Control equivalent
 
-Full key mapping applied:
+**The rule:** keys do what they do on macOS Monterey (sources: Apple's
+[Mac keyboard shortcuts](https://support.apple.com/en-us/102650); the
+shortcuts on that page are unchanged since Monterey, compared against its 2022
+version). The one deliberate exception is Tab: **Cmd+Tab moves to the next tab
+and Option+Tab switches apps**, matching how Mac users reach for Cmd as their
+main modifier on Linux. Any shortcut an app lists as Ctrl+key also works as
+Cmd+key.
+
+**How it works.** Cmd is a held keyd *layer* that behaves as Ctrl, with
+macOS-specific overrides on top. Left Option is a layer that never sends Alt
+by itself: its keys (word jump, word delete, the app switcher) are explicit,
+because a layer that holds Alt lets apps see the Alt press, and Option+Right
+opened the File menu. Right Option stays plain Alt (Alt+F4, Alt+drag, AltGr
+layouts). The control key does what it does on macOS, and stays Ctrl for
+everything else, so Ctrl+C stops a terminal program. keyd only sends keys:
+anything that starts a program (F3, Cmd+Shift+3) is a shortcut XFCE runs as
+you, never as root. Versions before this one wrote the Cmd combinations as keyd
+*chords*, which only fire when both keys go down within 50 ms, so Cmd+Space and
+Cmd+arrows never worked.
 
 | Key | Action |
 |-----|--------|
-| Cmd | Ctrl (preserves Mac muscle memory) |
+| Cmd+C / V / X / Z / S / F / W / Q … | Copy, paste, … (any Ctrl+key shortcut works as Cmd+key) |
 | Cmd+Space / F4 | App finder (like Spotlight / Launchpad) |
+| Cmd+Tab / Cmd+Shift+Tab | Next / previous tab (not the macOS key: see above) |
+| Option+Tab | Switch apps, hold Option and tap Tab (not the macOS key: see above) |
+| Cmd+` | Switch windows of the same app |
+| Cmd+Shift+[ / ] | Previous / next tab |
+| Cmd+Option+Left / Right | Previous / next tab |
+| Cmd+[ / ] | Back / forward (browsers, Files) |
+| Cmd+H / Cmd+M | Hide (minimize) the window |
+| Cmd+Left / Right | Start / end of line |
+| Cmd+Up / Down | Start / end of document |
+| Cmd+Backspace | Delete to start of line |
+| Option+Left / Right | Jump one word |
+| Option+Backspace / Option+Fn+Backspace | Delete the word before / after the cursor |
+| + Shift | Select while moving (Cmd+Shift+Left, Option+Shift+Right, …) |
+| Cmd+Shift+3 | Whole-screen screenshot to `~/Pictures` and the clipboard |
+| Cmd+Shift+4 / 5 | Area screenshot with annotation (Flameshot) |
+| Ctrl+Cmd+Q | Lock screen |
+| Shift+Cmd+Q | Log out (asks to confirm) |
+| Cmd+Option+F | Find and replace |
+| Ctrl+Up / F3 | Mission Control (all windows) |
+| Ctrl+Down | All windows of the front app |
+| Ctrl+Left / Right | Previous / next desktop |
+| Cmd+F3 | Show the desktop |
+| Ctrl+A / E / F / B / N / P / H / D / K / O | macOS text-field keys: line start / end, move, delete, cut to end of line, open a line |
+| Ctrl+Cmd+F | Full screen |
+| Cmd+Option+Esc | Force quit (click a window) |
 | F1 / F2 | Brightness down / up |
 | F3 | Window switcher (like Mission Control) |
 | F5 / F6 | Keyboard backlight down / up |
 | F7 / F8 / F9 | Previous / Play-Pause / Next track |
 | F10 / F11 / F12 | Mute / Volume down / Volume up |
 | Fn+F1–F12 | Standard F1–F12 keys |
-| Cmd+Left / Right | Jump to start / end of line |
-| Cmd+Up / Down | Jump to start / end of document |
-| Cmd+Shift+Left / Right | Select to start / end of line |
-| Cmd+Shift+Up / Down | Select to start / end of document |
-| Cmd+Backspace | Delete entire line left of cursor |
+
+**In Files (Thunar)** the keys follow Finder: Cmd+Backspace moves the
+selection to the Trash, Cmd+Up / Down go to the enclosing folder / open the
+selection, Cmd+I shows Properties. This also keeps the text-editing
+Cmd+Backspace (Shift+Home, Delete) out of the file manager, where it would
+select every file up to the first one and trash them.
+
+**In the terminal** (xfce4-terminal and GNOME Terminal), the per-app mapper
+switches a few keys to what a terminal needs: Cmd+C / Cmd+V copy and paste,
+Cmd+T / N / W / Q open and close tabs and windows, Cmd+F finds,
+Cmd+Backspace deletes to the start of the line (Ctrl+U), Cmd+Tab / Cmd+Shift+Tab
+move between terminal tabs (Ctrl+PageDown / PageUp), and Option+Backspace is
+the shell's word delete. Option+arrows need no terminal override: they send
+Ctrl+arrows, which Debian's shell setup already treats as word moves. The control key reaches the
+shell unchanged (Ctrl+C, Ctrl+A, Ctrl+K, …), as in macOS Terminal. This needs one log-out and
+log-in after the first run. The bindings live in `~/.config/keyd/app.conf`;
+if you write your own file there, the script leaves it alone.
 
 ### MacBook Touchpad Resume Fix
 The bcm5974 trackpad re-enumerates as a USB device every time the lid opens
@@ -277,9 +649,12 @@ disables the trackpad before anything can turn it back on, leaving a dead pad
 until reboot. This script clears that stored state and installs a systemd sleep
 hook that force-enables the trackpad after each resume.
 
-This covers only re-enabling the trackpad. For personal touchpad *preferences*
-(tap-to-click, natural scrolling, cursor acceleration), see the
-[dotfiles](https://github.com/willardcsoriano/dotfiles) repo below.
+It also sets the trackpad to feel like a Mac's: natural scrolling, two-finger
+click for a right click, and no stray clicks while typing, plus tap-to-click
+(off by default on macOS, on here). These are written as defaults in
+`/etc/X11/xorg.conf.d/30-macbook-postinstall-touchpad.conf`, so Settings →
+Mouse and Touchpad still changes them per user, and a later-numbered file of
+your own overrides any of them.
 
 ### Webcam and Microphone
 The FaceTime HD camera in Intel MacBooks connects via PCIe, not USB. It
@@ -315,110 +690,25 @@ cleaned copies of affected launchers into `~/.local/share/applications`
 cleanly from the App Finder.
 
 ### Desktop Shortcuts
-Shortcuts for every installed app are placed on your Desktop so you can
-find everything without memorizing commands. First time you click a
+Shortcuts for the everyday apps are placed on your Desktop so you can
+find everything without memorizing commands: Firefox, Chromium, Files,
+Terminal, Text Editor, VS Code, Writer, Calc, Impress, VLC, Images,
+Screenshot, Calculator, Task Manager, Bluetooth, System Settings and System
+Info. Everything else is in the app menu. Re-running the script updates these
+shortcuts and removes ones older versions placed (such as htop and the image
+editor), but never touches a shortcut you made or edited yourself. First time you click a
 shortcut XFCE will show "Untrusted application launcher" — click Launch
 to confirm. It will not ask again.
 
+### Getting Started Guide
+A plain text file called GETTING STARTED.txt is placed on your Desktop, and
+is also in the app menu as **Getting Started**, with a short first-steps
+guide to the new desktop.
+
 ### Keyboard Shortcuts Cheat Sheet
 A plain text file called KEYBOARD SHORTCUTS.txt is placed on your Desktop
-with a complete reference of every shortcut configured by this script.
-
----
-
-## Prerequisites
-
-### 1. Working internet connection
-
-Confirm with:
-
-    ping -c 3 google.com
-
-### 2. Set up sudo for your user
-
-Debian does not configure sudo for regular users by default. This must be
-done once before running the script. Do it while you are still in the
-terminal from the Broadcom install.
-
-Switch to root:
-
-    su -
-
-Add your user to the sudo group (replace yourusername with your actual
-username, for example willard):
-
-    usermod -aG sudo yourusername
-
-Exit root and log out:
-
-    exit
-    logout
-
-Log back in as your regular user. Confirm sudo works:
-
-    sudo echo "sudo is working"
-
-If you see "sudo is working" you are ready.
-
----
-
-## Installation
-
-Run this single command as your regular user, not as root:
-
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/setup.sh)
-
-The script prints progress for every step. Estimated time: 20–40 minutes
-depending on internet speed. LibreOffice alone is ~300MB.
-
-When finished it will tell you whether a reboot is required and prompt you.
-
----
-
-## Theming (optional)
-
-Vanilla XFCE is functional but plain. If you want a macOS-style look — the
-WhiteSur dark GTK theme, macOS-style window controls on the left, and a
-Plank dock at the bottom — run this after the setup script completes and
-you have rebooted into the desktop:
-
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.10.0/themes.sh)
-
-You will be prompted to choose a mode:
-
-- **Classic** — desktop icons visible, Plank shows open apps only
-- **Dock** — clean empty desktop, all apps pinned in Plank
-- **Revert** — removes all themes and restores vanilla XFCE
-
-If you change your mind later, just run the script again and pick a
-different mode or choose Revert.
-
----
-
-## Microsoft Teams
-
-Microsoft ships no native Teams client for Debian. Use the web app at
-`teams.microsoft.com` in **Chromium**, which `setup.sh` installs. Nothing
-else to install, and it updates itself.
-
-Why Chromium rather than a desktop client: when a call starts, Teams asks
-the camera for a specific resolution, and the reverse-engineered
-`facetimehd` driver only supports a narrow, fixed set of resolutions. In the
-unofficial `teams-for-linux` Electron client that mismatch makes the camera
-fail at call start even though it works in Cheese and Zoom; Chromium
-negotiates the camera more permissively and the camera works. Full writeup:
-[dotfiles/notes/teams-for-linux-camera-not-working.md](https://github.com/willardcsoriano/dotfiles/blob/master/notes/teams-for-linux-camera-not-working.md).
-
-If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the browser. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
-
-**If you installed `teams-for-linux` with the `teams.sh` script from v1.9.x**,
-remove the client, its apt repository and its signing key, since that
-repository is not covered by automatic updates:
-
-    sudo apt purge -y teams-for-linux
-    sudo rm -f /etc/apt/sources.list.d/teams-for-linux-packages.sources /etc/apt/keyrings/teams-for-linux.asc
-    sudo apt update
-    rm -rf ~/.config/teams-for-linux "$HOME/Desktop/Microsoft Teams.desktop"
+with a complete reference of every shortcut configured by this script. It is
+also in the app menu as **Keyboard Shortcuts**.
 
 ---
 
@@ -445,6 +735,19 @@ repository is not covered by automatic updates:
   It works well but is not officially supported by Apple or the Linux kernel.
 - Ctrl+Alt+S screenshot shortcut requires XFCE session to be running. It
   will not work from a pure terminal before first boot into the desktop.
+
+---
+
+## The Story So Far
+
+If you just came from the [offline WiFi kit](https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline), you have accomplished something genuinely difficult — you installed Linux on a MacBook with no internet access and got WiFi working entirely from a USB stick. That is not a beginner task and you should feel good about it.
+
+But right now you are staring at a terminal. No desktop, no browser, no
+way to adjust brightness, no GUI tools, no keyboard shortcuts that feel
+familiar coming from macOS. The Cmd key does nothing useful. The function
+keys do nothing. The FaceTime camera does not work. The mic may not work.
+
+This script fixes all of that in one command.
 
 ---
 
