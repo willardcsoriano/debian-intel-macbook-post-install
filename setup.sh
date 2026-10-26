@@ -395,11 +395,16 @@ else
 fi
 
 if [ -f "$TIMESHIFT_CONF" ]; then
-    print_info "Creating snapshot (this can take a few minutes on first run)..."
-    if sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" --tags O >>"$LOG_FILE" 2>&1; then
+    print_info "Creating snapshot (takes a few minutes: Timeshift checks every system file)..."
+    # No --tags: on-demand (O) is the default, and Timeshift 24.06 rejects an
+    # explicit "--tags O" (its validator lists O as valid but doesn't accept it).
+    if TS_OUT=$(sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" 2>&1); then
+        printf '%s\n' "$TS_OUT" | tr '\r' '\n' | grep -v '% complete' >>"$LOG_FILE"
         print_ok "Snapshot created — undo this entire run with: sudo timeshift --restore"
     else
-        print_warning "Snapshot creation failed (see $LOG_FILE) — continuing without one. Check free disk space with: df -h /"
+        printf '%s\n' "$TS_OUT" | tr '\r' '\n' | grep -v '% complete' >>"$LOG_FILE"
+        TS_ERR=$(printf '%s\n' "$TS_OUT" | grep -m1 '^E:' || true)
+        print_warning "Snapshot creation failed: ${TS_ERR:-no error message, see $LOG_FILE} — continuing without one"
     fi
 fi
 
