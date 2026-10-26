@@ -75,11 +75,26 @@ print_warning() { echo -e "${YELLOW}  ⚠ $1${NC}"; }
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE"; }
 
+# Report a service step by what systemd says, not by having run the command.
+check_active() {
+    if systemctl is-active --quiet "$1"; then
+        print_ok "$2"
+    else
+        print_warning "$1 is not running — details: sudo journalctl -u $1 -n 30"
+    fi
+}
+
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
+# dpkg-query, not dpkg -s: with a foreign architecture enabled (e.g. i386), a
+# package installed for both is "ambiguous" to dpkg -s and looks missing.
+is_installed() {
+    dpkg-query -W -f='${db:Status-Status}\n' "$1" 2>/dev/null | grep -qx installed
+}
+
 install_pkg() {
     local pkg=$1
     local label=${2:-$1}
-    if dpkg -s "$pkg" &>/dev/null; then
+    if is_installed "$pkg"; then
         print_skip "$label"
         SKIPPED+=("$label")
         return 1
@@ -104,7 +119,7 @@ install_pkgs() {
     local all_installed=true
 
     for pkg in "${pkgs[@]}"; do
-        if ! dpkg -s "$pkg" &>/dev/null; then
+        if ! is_installed "$pkg"; then
             all_installed=false
             break
         fi
@@ -395,11 +410,16 @@ else
 fi
 
 if [ -f "$TIMESHIFT_CONF" ]; then
-    print_info "Creating snapshot (this can take a few minutes on first run)..."
-    if sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" --tags O >>"$LOG_FILE" 2>&1; then
+    print_info "Creating snapshot (takes a few minutes: Timeshift checks every system file)..."
+    # No --tags: on-demand (O) is the default, and Timeshift 24.06 rejects an
+    # explicit "--tags O" (its validator lists O as valid but doesn't accept it).
+    if TS_OUT=$(sudo timeshift --create --comments "Before debian-intel-macbook-post-install setup.sh" 2>&1); then
+        printf '%s\n' "$TS_OUT" | tr '\r' '\n' | grep -v '% complete' >>"$LOG_FILE"
         print_ok "Snapshot created — undo this entire run with: sudo timeshift --restore"
     else
-        print_warning "Snapshot creation failed (see $LOG_FILE) — continuing without one. Check free disk space with: df -h /"
+        printf '%s\n' "$TS_OUT" | tr '\r' '\n' | grep -v '% complete' >>"$LOG_FILE"
+        TS_ERR=$(printf '%s\n' "$TS_OUT" | grep -m1 '^E:' || true)
+        print_warning "Snapshot creation failed: ${TS_ERR:-no error message, see $LOG_FILE} — continuing without one"
     fi
 fi
 
@@ -451,7 +471,7 @@ else
     install_pkg "zram-tools" "zram-tools (compressed RAM swap)"
     if systemctl list-unit-files zramswap.service &>/dev/null; then
         sudo systemctl enable --now zramswap.service >>"$LOG_FILE" 2>&1 || true
-        print_ok "Compressed RAM swap active (survives reboot, no disk wear)"
+        check_active zramswap.service "Compressed RAM swap active (survives reboot, no disk wear)"
     else
         print_warning "zram-tools installed but zramswap.service not found — swap may need a manual check"
     fi
@@ -493,7 +513,7 @@ fi
 # Installing fwupd doesn't auto-refresh metadata; the timer does
 if systemctl list-unit-files fwupd-refresh.timer &>/dev/null; then
     sudo systemctl enable --now fwupd-refresh.timer >>"$LOG_FILE" 2>&1 || true
-    print_ok "Firmware metadata refresh timer enabled"
+    check_active fwupd-refresh.timer "Firmware metadata refresh timer enabled"
 fi
 
 # apt-daily-upgrade.service ships with ConditionACPower=true, so it silently
@@ -563,7 +583,7 @@ install_pkg "cups" "CUPS printing system"
 
 sudo systemctl enable cups >>"$LOG_FILE" 2>&1 || true
 sudo systemctl start cups >>"$LOG_FILE" 2>&1 || true
-print_ok "Printing service enabled"
+check_active cups "Printing service enabled"
 
 # ─────────────────────────────────────────────
 # VISUAL STUDIO CODE
@@ -693,7 +713,7 @@ fi
 
 sudo systemctl enable NetworkManager >>"$LOG_FILE" 2>&1 || true
 sudo systemctl start NetworkManager >>"$LOG_FILE" 2>&1 || true
-print_ok "NetworkManager is running — WiFi will connect automatically on boot"
+check_active NetworkManager "NetworkManager is running — WiFi will connect automatically on boot"
 
 # polkit (authority / safety layer)
 # Debian lets a local, *active* sudo/netdev user change system network
@@ -829,7 +849,7 @@ echo -e "  ${CYAN}The MacBook FaceTime HD camera needs a custom driver — insta
 install_pkgs "Build tools for webcam driver" git curl cpio make build-essential dkms alsa-utils
 
 KERNEL_VERSION=$(uname -r)
-if ! dpkg -s "linux-headers-$KERNEL_VERSION" &>/dev/null; then
+if ! is_installed "linux-headers-$KERNEL_VERSION"; then
     print_info "Installing kernel headers for $KERNEL_VERSION..."
     if sudo apt install -y "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1; then
         # apt install marks the package manual, and versioned headers depend on
@@ -1237,7 +1257,7 @@ done
 pgrep -x xfce4-panel > /dev/null || exit 1
 
 # Use docklike (icon-only window buttons) if installed, otherwise tasklist
-if dpkg -s xfce4-docklike-plugin &>/dev/null; then
+if is_installed xfce4-docklike-plugin; then
     WIN="docklike"
 else
     WIN="tasklist"
