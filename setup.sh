@@ -85,10 +85,16 @@ check_active() {
 }
 
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
+# dpkg-query, not dpkg -s: with a foreign architecture enabled (e.g. i386), a
+# package installed for both is "ambiguous" to dpkg -s and looks missing.
+is_installed() {
+    dpkg-query -W -f='${db:Status-Status}\n' "$1" 2>/dev/null | grep -qx installed
+}
+
 install_pkg() {
     local pkg=$1
     local label=${2:-$1}
-    if dpkg -s "$pkg" &>/dev/null; then
+    if is_installed "$pkg"; then
         print_skip "$label"
         SKIPPED+=("$label")
         return 1
@@ -113,7 +119,7 @@ install_pkgs() {
     local all_installed=true
 
     for pkg in "${pkgs[@]}"; do
-        if ! dpkg -s "$pkg" &>/dev/null; then
+        if ! is_installed "$pkg"; then
             all_installed=false
             break
         fi
@@ -843,7 +849,7 @@ echo -e "  ${CYAN}The MacBook FaceTime HD camera needs a custom driver — insta
 install_pkgs "Build tools for webcam driver" git curl cpio make build-essential dkms alsa-utils
 
 KERNEL_VERSION=$(uname -r)
-if ! dpkg -s "linux-headers-$KERNEL_VERSION" &>/dev/null; then
+if ! is_installed "linux-headers-$KERNEL_VERSION"; then
     print_info "Installing kernel headers for $KERNEL_VERSION..."
     if sudo apt install -y "linux-headers-$KERNEL_VERSION" >>"$LOG_FILE" 2>&1; then
         # apt install marks the package manual, and versioned headers depend on
@@ -1251,7 +1257,7 @@ done
 pgrep -x xfce4-panel > /dev/null || exit 1
 
 # Use docklike (icon-only window buttons) if installed, otherwise tasklist
-if dpkg -s xfce4-docklike-plugin &>/dev/null; then
+if is_installed xfce4-docklike-plugin; then
     WIN="docklike"
 else
     WIN="tasklist"
