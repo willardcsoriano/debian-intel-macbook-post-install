@@ -1228,6 +1228,30 @@ EOF
 sudo chmod +x /etc/systemd/system-sleep/touchpad-resume
 print_ok "Trackpad will re-enable automatically after lid-open/resume"
 
+# Trackpad feel, as on a Mac: natural scrolling, two-finger click for a right
+# click, no stray clicks while typing -- plus tap-to-click. These are defaults:
+# Settings > Mouse and Touchpad still changes them per user. A later-numbered
+# file in xorg.conf.d (your own, say) overrides any of these options.
+TOUCHPAD_CONF="/etc/X11/xorg.conf.d/30-macbook-postinstall-touchpad.conf"
+TOUCHPAD_CONTENT='# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+Section "InputClass"
+    Identifier "macbook-postinstall touchpad"
+    MatchIsTouchpad "on"
+    Driver "libinput"
+    Option "NaturalScrolling" "on"
+    Option "ClickMethod" "clickfinger"
+    Option "DisableWhileTyping" "on"
+    Option "Tapping" "on"
+EndSection'
+if [ "$(cat "$TOUCHPAD_CONF" 2>/dev/null)" = "$TOUCHPAD_CONTENT" ]; then
+    print_skip "Trackpad settings"
+else
+    sudo mkdir -p /etc/X11/xorg.conf.d
+    printf '%s\n' "$TOUCHPAD_CONTENT" | sudo tee "$TOUCHPAD_CONF" > /dev/null
+    print_ok "Trackpad: natural scrolling, two-finger right click, tap to click (after reboot)"
+    REBOOT_REQUIRED=true
+fi
+
 # ─────────────────────────────────────────────
 # WEBCAM AND MICROPHONE
 # ─────────────────────────────────────────────
