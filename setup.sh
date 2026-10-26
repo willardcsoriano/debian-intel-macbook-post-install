@@ -603,6 +603,32 @@ else
     print_warning "AppArmor is not active — consider: sudo systemctl enable --now apparmor"
 fi
 
+# Firewall: refuse incoming connections, allow everything outgoing. A laptop
+# joins networks it doesn't control; anything that happens to listen on all
+# interfaces (a dev web server, say) is then reachable by everyone on that
+# network. mDNS stays open so printers and other devices are still found.
+# Enabled only on the run that installs ufw: if ufw is already installed but
+# off, that looks deliberate and is left alone.
+install_pkg "ufw" "ufw (firewall)"
+UFW_RC=$?
+if sudo ufw status 2>/dev/null | grep -q "^Status: active"; then
+    print_skip "Firewall (ufw already on)"
+elif [ "$UFW_RC" -eq 0 ]; then
+    if {
+        sudo ufw default deny incoming &&
+        sudo ufw default allow outgoing &&
+        sudo ufw allow 5353/udp comment 'mDNS: printer and device discovery' &&
+        sudo ufw --force enable
+    } >>"$LOG_FILE" 2>&1; then
+        print_ok "Firewall on: incoming connections blocked (open a port with: sudo ufw allow <port>)"
+    else
+        print_fail "Firewall (ufw could not be enabled -- see the log)"
+        FAILED+=("Firewall")
+    fi
+elif [ "$UFW_RC" -eq 1 ]; then
+    print_warning "ufw is installed but off -- left off. Turn it on with: sudo ufw enable"
+fi
+
 # ─────────────────────────────────────────────
 # DESKTOP ENVIRONMENT
 # ─────────────────────────────────────────────
