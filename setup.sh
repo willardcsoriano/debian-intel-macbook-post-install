@@ -816,7 +816,7 @@ install_pkg "speech-dispatcher" "speech-dispatcher (text-to-speech)"
 
 print_info "Configuring screenshot shortcut..."
 xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Primary><Alt>s' -s 'flameshot gui' --create -t string
-print_ok "Screenshot shortcut set to Ctrl+Alt+S (flameshot)"
+print_ok "Screenshot shortcut set (Cmd+Shift+4 / 5 draw a region)"
 
 # Real window tiling — tile_on_move is the setting that snaps windows
 # to screen edges when dragged. wrap_windows is about workspace wrapping.
@@ -895,64 +895,303 @@ echo -e "  ${CYAN}Remapping keys so your Mac keyboard works naturally on Linux.$
 
 install_pkg "keyd" "keyd (key remapper)" && REBOOT_REQUIRED=true
 install_pkg "brightness-udev" "brightness-udev (backlight permissions)" || true
-install_pkg "rofi" "rofi (window switcher for F3)"
+install_pkg "rofi" "rofi (Mission Control window switcher)"
+install_pkg "python3-xlib" "python3-xlib (lets the terminal get its own Mac keys)"
 
+# How the Mac keyboard maps, and why (see "MacBook Keyboard Fixes" in the README):
+# macOS Monterey's keys (unchanged in later macOS), with one deliberate
+# exception for the Tab keys, which follow how Mac users reach for them on
+# Linux: Cmd+Tab = next tab, Option+Tab = switch apps.
+# - Cmd is a held keyd *layer* that behaves as Ctrl, so every Ctrl shortcut
+#   works as Cmd+<key>, plus macOS overrides (Cmd+arrows, Cmd+H, ...). Earlier
+#   versions wrote "meta+left = home" in [main], which keyd reads as a 50 ms
+#   *chord*, so Cmd+Space and Cmd+arrows never worked.
+# - Left Option is a layer that never sends Alt itself: one that holds Alt
+#   (option:A) lets apps see the Alt press, and Option+Right opened the File
+#   menu. Its keys are explicit bindings; Right Option stays plain Alt for
+#   Alt+F4, Alt+drag and the like.
+# - control does what it does on macOS (text-field keys, Mission Control,
+#   desktops); everything else stays Ctrl, so Ctrl+C still stops a program.
+# - keyd only emits keys. Anything that launches a program (F3, screenshots)
+#   emits a combo that XFCE binds below, so it runs as you, not as root.
+# Composite layers ([cmd+shift] ...) must come after the layers they combine.
 KEYD_CONF="/etc/keyd/default.conf"
-if [ -f "$KEYD_CONF" ]; then
-    print_info "Backing up existing keyboard config..."
+if [ -f "$KEYD_CONF" ] && [ ! -f "$KEYD_CONF.bak" ]; then
+    print_info "Backing up the original keyboard config..."
     sudo cp "$KEYD_CONF" "$KEYD_CONF.bak"
-    print_ok "Backup saved to $KEYD_CONF.bak"
+    print_ok "Original saved to $KEYD_CONF.bak"
 fi
 
 print_info "Writing keyboard configuration..."
 sudo mkdir -p /etc/keyd
 sudo tee "$KEYD_CONF" > /dev/null << EOF
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
 [ids]
 *
 
 [main]
-# Cmd key acts as Ctrl (Mac muscle memory)
-meta = leftcontrol
+# Cmd: a Ctrl layer with macOS overrides
+meta = layer(cmd)
+# Left Option: word keys and the app switcher (see above)
+leftalt = layer(option)
 
-# Cmd+Space / F4 opens XFCE app finder
-meta+space = A-f2
+# F3 (Mission Control): Super+W, which XFCE binds to the rofi window switcher
+scale = M-w
+# F4 (Launchpad): the app finder
 dashboard = A-f2
-
-# F3 - Mission Control equivalent (rofi window switcher)
-scale = command(sh -c 'DISPLAY=:0 XAUTHORITY=$ACTUAL_HOME/.Xauthority rofi -show window -show-icons')
 
 # Brightness keys (via sysfs)
 brightnessdown = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val > 200 ? val - 200 : 100)) | tee /sys/class/backlight/intel_backlight/brightness')
 brightnessup = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val + 200 > $MAX_BRIGHTNESS ? $MAX_BRIGHTNESS : val + 200)) | tee /sys/class/backlight/intel_backlight/brightness')
 
-# Cmd+arrow text navigation (Mac style)
-meta+left = home
-meta+right = end
-meta+up = C-home
-meta+down = C-end
-meta+shift+left = S-home
-meta+shift+right = S-end
-meta+shift+up = C-S-home
-meta+shift+down = C-S-end
-meta+backspace = S-home delete
+[cmd:C]
+# Spotlight -> app finder
+space = A-f2
+# Line and document navigation
+left = home
+right = end
+up = C-home
+down = C-end
+# Delete to the start of the line
+backspace = macro(S-home delete)
+# Tab is left as Ctrl+Tab: next tab (Cmd+Shift+Tab: previous)
+# Windows of the current app: hold Cmd, tap the grave key (XFCE's Super+Tab switcher)
+grave = swapm(app_windows, M-tab)
+# Hide / minimize
+h = A-f9
+m = A-f9
+# Cmd+Mission Control (F3): show the desktop
+scale = C-A-d
+
+[option]
+# Word navigation and word delete (Fn+Backspace is forward delete)
+left = C-left
+right = C-right
+backspace = C-backspace
+delete = C-delete
+# App switcher: hold Option, tap Tab to cycle (Alt stays held until Option is released)
+tab = swapm(app_switch, A-tab)
+
+[app_switch:A]
+
+[app_windows:M]
+grave = M-tab
+
+[control]
+# The control key does what it does on a Mac. Text fields: Ctrl+A/E line
+# start/end, F/B/N/P move the cursor, H/D delete back/forward, K cuts to the
+# end of the line, O opens a line. (The terminal keeps the real Ctrl keys:
+# see ~/.config/keyd/app.conf.)
+a = home
+e = end
+f = right
+b = left
+n = down
+p = up
+h = backspace
+d = delete
+k = macro(S-end C-x)
+o = macro(enter left)
+# Ctrl+Up: Mission Control (window switcher). Ctrl+Down: windows of the front
+# app. Ctrl+Left/Right: previous / next desktop (Space).
+up = M-w
+down = M-tab
+left = C-A-left
+right = C-A-right
+
+[cmd+shift]
+# Selection to line / document edges
+left = S-home
+right = S-end
+up = C-S-home
+down = C-S-end
+# Previous / next tab (browsers, VS Code, terminal, editors)
+leftbrace = C-pageup
+rightbrace = C-pagedown
+# Log out (XFCE's log-out dialog asks to confirm, as on a Mac)
+q = C-A-delete
+# Screenshots: 3 = whole screen to ~/Pictures and the clipboard, 4 and 5 = Flameshot
+3 = M-3
+4 = C-A-s
+5 = C-A-s
+
+[option+shift]
+# Select by word
+left = C-S-left
+right = C-S-right
+
+[control+cmd]
+# Lock screen / full screen
+q = C-A-l
+f = A-f11
+
+[cmd+option]
+# Force Quit: click a window to close it
+escape = C-A-escape
+# Find and Replace (Linux apps use Ctrl+H)
+f = C-h
+# Previous / next tab, as in Safari and Chrome on a Mac
+left = C-pageup
+right = C-pagedown
 EOF
 
 print_ok "Keyboard config written"
 
 sudo systemctl enable keyd >>"$LOG_FILE" 2>&1 || true
+# keyd skips any line it can't parse and runs with the rest, so a clean
+# restart doesn't mean the config loaded: read its startup errors back.
+KEYD_SINCE=$(date +%s)
 sudo systemctl restart keyd >>"$LOG_FILE" 2>&1 || true
-print_ok "Keyboard remapping is active"
+sleep 1
+KEYD_ERRORS=$(sudo journalctl -u keyd --since "@$KEYD_SINCE" --no-pager -o cat 2>/dev/null | grep 'ERROR' || true)
+if ! systemctl is-active --quiet keyd; then
+    print_warning "keyd failed to start — Mac key mappings are off. Details: sudo journalctl -u keyd -n 30"
+elif [ -n "$KEYD_ERRORS" ]; then
+    log "keyd config errors: $KEYD_ERRORS"
+    print_warning "keyd is running but rejected part of /etc/keyd/default.conf (those keys are unmapped):"
+    printf '%s\n' "$KEYD_ERRORS" | sed 's/^[[:space:]]*/      /'
+else
+    print_ok "Keyboard remapping is active"
+fi
 
-echo -e "\n  ${CYAN}Key mappings applied:${NC}"
-echo -e "  • Cmd key now works as Ctrl"
-echo -e "  • Cmd+Space / F4 opens app finder"
-echo -e "  • F1/F2 controls screen brightness"
-echo -e "  • F3 opens window switcher"
-echo -e "  • F5/F6 controls keyboard backlight (via kernel)"
-echo -e "  • F7/F8/F9 controls media playback (via kernel)"
-echo -e "  • F10/F11/F12 controls volume (via kernel)"
-echo -e "  • Cmd+Left/Right jumps to start/end of line"
-echo -e "  • Cmd+Up/Down jumps to start/end of document\n"
+# XFCE runs the programs those combos stand for, as you.
+xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super>w' -s 'rofi -show window -show-icons' --create -t string
+xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super>3' -s "sh -c 'mkdir -p \"\$HOME/Pictures\" && flameshot full -c -p \"\$HOME/Pictures\"'" --create -t string
+
+# Per-app keys. A few Cmd keys must mean something else in some apps: in a
+# terminal Cmd+C has to copy rather than interrupt, and in Files Cmd+Backspace
+# has to trash the selection. keyd's per-app mapper switches bindings when the
+# focused window changes. Debian packages keyd but not this script, so it is
+# fetched from keyd upstream at the version Debian ships, checksum-verified.
+KAM_VERSION="v2.5.0"
+KAM_SHA256="147778345f1fa65fb2f10992520ab4aa74be1b0fc8aa50d0282acca76e690b16"
+KAM_BIN="/usr/local/bin/keyd-application-mapper"
+if [ -x "$KAM_BIN" ] && echo "$KAM_SHA256  $KAM_BIN" | sha256sum -c --status 2>/dev/null; then
+    print_skip "keyd per-app mapper"
+else
+    KAM_TMP=$(mktemp)
+    if curl -fsSL "https://raw.githubusercontent.com/rvaiya/keyd/$KAM_VERSION/scripts/keyd-application-mapper" -o "$KAM_TMP" \
+        && echo "$KAM_SHA256  $KAM_TMP" | sha256sum -c --status; then
+        sudo install -m 755 "$KAM_TMP" "$KAM_BIN"
+        print_ok "keyd per-app mapper installed ($KAM_VERSION, checksum verified)"
+    else
+        print_fail "keyd per-app mapper (download failed or checksum mismatch -- not installed)"
+        FAILED+=("keyd per-app mapper")
+    fi
+    rm -f "$KAM_TMP"
+fi
+
+# The mapper calls "keyd", which Debian renamed to keyd.rvaiya (the name clashes
+# with onak's keyd, Debian bug #1098982). A private shim dir on the mapper's own
+# PATH fixes that without shadowing any system-wide "keyd".
+KAM_SHIM_DIR="/usr/local/lib/macbook-postinstall/bin"
+if [ -x /usr/bin/keyd.rvaiya ] && [ "$(readlink "$KAM_SHIM_DIR/keyd" 2>/dev/null)" != "/usr/bin/keyd.rvaiya" ]; then
+    sudo mkdir -p "$KAM_SHIM_DIR"
+    sudo ln -sfn /usr/bin/keyd.rvaiya "$KAM_SHIM_DIR/keyd"
+    print_ok "keyd name shim for the per-app mapper"
+fi
+
+# The mapper talks to keyd over /var/run/keyd.socket, which belongs to the keyd
+# group. That group can remap the keyboard, so treat it like sudo -- this user
+# already is a sudoer, so it grants nothing new. Takes effect at next login.
+if id -nG "$USER" | tr ' ' '\n' | grep -qx keyd; then
+    print_skip "keyd group membership"
+elif getent group keyd > /dev/null; then
+    sudo usermod -aG keyd "$USER" && print_ok "Added $USER to the keyd group (active from next login)"
+    REBOOT_REQUIRED=true
+fi
+
+# Terminal bindings. Rewritten only while it is still the file this script
+# manages, so an app.conf you wrote yourself is never overwritten.
+KAM_CONF="$ACTUAL_HOME/.config/keyd/app.conf"
+KAM_MARKER="# Managed by debian-intel-macbook-post-install"
+mkdir -p "$(dirname "$KAM_CONF")"
+if [ -f "$KAM_CONF" ] && [[ "$(head -n 1 "$KAM_CONF")" != "$KAM_MARKER"* ]]; then
+    print_warning "Your own .config/keyd/app.conf was found -- left as is (terminal Mac keys not added)"
+else
+    {
+        echo "$KAM_MARKER -- re-running setup.sh rewrites it."
+        for term in xfce4-terminal gnome-terminal; do
+            cat << APPCONF
+
+[$term]
+# Cmd+C/V copy and paste (plain Ctrl+C still interrupts), Cmd+T/N/W/Q/F tabs,
+# windows and find
+cmd.c = C-S-c
+cmd.v = C-S-v
+cmd.t = C-S-t
+cmd.n = C-S-n
+cmd.w = C-S-w
+cmd.q = C-S-q
+cmd.f = C-S-f
+# Cmd+Backspace: delete to the start of the line, the shell way
+cmd.backspace = C-u
+# Cmd+Tab / Cmd+Shift+Tab: next / previous tab (terminals use Ctrl+PageDown/Up,
+# not the Ctrl+Tab that Cmd+Tab sends elsewhere)
+cmd.tab = C-pagedown
+cmd+shift.tab = C-pageup
+# Option+Backspace: the shell's word delete. Option+arrows need no override: the
+# Ctrl+arrows they send are word moves in Debian's /etc/inputrc, while Alt+F
+# (the shell's other forward-word) opens the terminal's File menu.
+option.backspace = A-backspace
+# The control key reaches the shell unchanged, as in macOS Terminal
+control.a = C-a
+control.e = C-e
+control.f = C-f
+control.b = C-b
+control.n = C-n
+control.p = C-p
+control.h = C-h
+control.d = C-d
+control.k = C-k
+control.o = C-o
+APPCONF
+        done
+        cat << APPCONF
+
+[thunar]
+# Finder keys. Cmd+Backspace must move the selection to the Trash here: the
+# global "delete to line start" (Shift+Home, Delete) would select every file
+# from the cursor up to the first one and trash them all.
+cmd.backspace = delete
+cmd.up = A-up
+cmd.down = enter
+cmd.i = A-enter
+cmd.leftbrace = A-left
+cmd.rightbrace = A-right
+
+[chromium]
+# Back / forward
+cmd.leftbrace = A-left
+cmd.rightbrace = A-right
+
+[firefox*]
+cmd.leftbrace = A-left
+cmd.rightbrace = A-right
+APPCONF
+    } > "$KAM_CONF"
+    print_ok "Terminal Mac keys written to ~/.config/keyd/app.conf"
+fi
+
+mkdir -p "$ACTUAL_HOME/.config/autostart"
+cat > "$ACTUAL_HOME/.config/autostart/keyd-application-mapper.desktop" << KAM_AUTOSTART
+[Desktop Entry]
+Type=Application
+Name=keyd per-app keys
+Comment=Switches Mac keys for the focused app (debian-intel-macbook-post-install)
+Exec=env PATH=$KAM_SHIM_DIR:/usr/local/bin:/usr/bin:/bin keyd-application-mapper -d
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+KAM_AUTOSTART
+print_ok "Per-app mapper starts at login"
+
+echo -e "\n  ${CYAN}Key mappings applied (full list: KEYBOARD SHORTCUTS.txt):${NC}"
+echo -e "  • Keys work as on macOS Monterey: Cmd+C, Cmd+V, Cmd+Q, Cmd+H, Cmd+Space, ..."
+echo -e "  • Except Tab: Cmd+Tab = next tab, Option+Tab = switch apps"
+echo -e "  • Cmd+Left/Right line start/end, Option+Left/Right jump a word"
+echo -e "  • Ctrl+Up Mission Control, Ctrl+Left/Right switch desktops"
+echo -e "  • Cmd+Shift+3 / 4 take screenshots; Ctrl+Cmd+Q locks the screen"
+echo -e "  • In the terminal, Cmd+C / Cmd+V copy and paste (Ctrl+C still stops a program)\n"
 
 # ─────────────────────────────────────────────
 # TOUCHPAD RESUME FIX
