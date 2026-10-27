@@ -2,8 +2,10 @@ name: Tests
 
 # Runs tests/ on every PR and on master: the keyd config and app.conf that
 # setup.sh writes are checked against keyd's grammar and key list (keyd skips
-# a line it can't parse instead of failing, and has no check command).
-# Python's standard library only. A record, not a merge gate.
+# a line it can't parse instead of failing, and has no check command), and the
+# helpers it installs are run against stub tools. Python's standard library,
+# plus the unicode-data package the emoji picker reads. A record, not a merge
+# gate.
 
 on:
   pull_request:
@@ -18,5 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # The emoji picker's test reads Debian's Unicode emoji list
+      - name: Install unicode-data
+        run: sudo apt-get update && sudo apt-get install -y unicode-data
       - name: Run tests
         run: python3 -m unittest discover -s tests -v

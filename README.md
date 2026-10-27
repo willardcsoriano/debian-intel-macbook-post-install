@@ -598,31 +598,46 @@ Cmd+arrows never worked.
 | Cmd+Shift+[ / ] | Previous / next tab |
 | Cmd+Option+Left / Right | Previous / next tab |
 | Cmd+[ / ] | Back / forward (browsers, Files) |
-| Cmd+H / Cmd+M | Hide (minimize) the window |
+| Cmd+H | Hide the front app (minimizes all its windows on this desktop) |
+| Cmd+Option+H | Hide every other app |
+| Cmd+M / Cmd+Option+M | Minimize the window / all windows of the front app |
 | Cmd+Left / Right | Start / end of line |
 | Cmd+Up / Down | Start / end of document |
 | Cmd+Backspace | Delete to start of line |
 | Option+Left / Right | Jump one word |
 | Option+Backspace / Option+Fn+Backspace | Delete the word before / after the cursor |
+| Option+Up / Down | Start / end of the paragraph |
 | + Shift | Select while moving (Cmd+Shift+Left, Option+Shift+Right, …) |
 | Cmd+Shift+3 | Whole-screen screenshot to `~/Pictures` and the clipboard |
 | Cmd+Shift+4 / 5 | Area screenshot with annotation (Flameshot) |
 | Ctrl+Cmd+Q | Lock screen |
 | Shift+Cmd+Q | Log out (asks to confirm) |
 | Cmd+Option+F | Find and replace |
+| Cmd+Option+Shift+V | Paste as plain text (Paste and Match Style) |
+| Cmd+Option+I | Developer tools / inspector |
+| Cmd+? (Cmd+Shift+/) | Help (F1) |
 | Ctrl+Up / F3 | Mission Control (all windows) |
 | Ctrl+Down | All windows of the front app |
 | Ctrl+Left / Right | Previous / next desktop |
-| Cmd+F3 | Show the desktop |
+| Cmd+F3 / Fn+F11 / Fn+H | Show the desktop (Fn+F11 replaces plain F11, as on a Mac) |
+| Fn+Shift+A | App finder (like Apps / Launchpad) |
+| Ctrl+Cmd+Space / Fn+E | Emoji picker: type to search, Enter types it (and copies it) |
+| Cmd+Option+D / Fn+A | Dock auto-hide on / off |
+| Option+Brightness / Volume / Keyboard light / F3 | Open Display / Sound / Keyboard / window manager settings |
+| Option+Shift+Brightness / Volume / Keyboard light | Smaller steps |
+| Ctrl+Cmd+Option+8 | Invert colors |
+| Ctrl+Power / Ctrl+Shift+Power | Restart-sleep-shut-down dialog / display sleep (not yet confirmed on hardware) |
 | Ctrl+A / E / F / B / N / P / H / D / K / O | macOS text-field keys: line start / end, move, delete, cut to end of line, open a line |
 | Ctrl+Cmd+F | Full screen |
 | Cmd+Option+Esc | Force quit (click a window) |
+| In Files: Cmd+D, Cmd+Shift+D / H / G / F / K / C / O, Cmd+Option+L, Cmd+Shift+Delete, Cmd+/, Ctrl+Cmd+T | Duplicate; Desktop, Home, Go to Folder, Recents, Network, Computer, Documents, Downloads; Empty Trash; status bar; add to sidebar |
+| In LibreOffice: Cmd+{ / } / \|, Cmd+; | Align left / right / center, Spelling |
 | F1 / F2 | Brightness down / up |
 | F3 | Window switcher (like Mission Control) |
 | F5 / F6 | Keyboard backlight down / up |
 | F7 / F8 / F9 | Previous / Play-Pause / Next track |
 | F10 / F11 / F12 | Mute / Volume down / Volume up |
-| Fn+F1–F12 | Standard F1–F12 keys |
+| Fn+F1–F12 | Standard F1–F12 keys (except Fn+F11: show the desktop) |
 
 **In Files (Thunar)** the keys follow Finder: Cmd+Backspace moves the
 selection to the Trash, Cmd+Up / Down go to the enclosing folder / open the
@@ -745,8 +760,9 @@ also in the app menu as **Keyboard Shortcuts**.
   (skippy-xd) is not currently in Debian Trixie repos.
 - The FaceTime HD webcam driver is a community reverse-engineered driver.
   It works well but is not officially supported by Apple or the Linux kernel.
-- Ctrl+Alt+S screenshot shortcut requires XFCE session to be running. It
-  will not work from a pure terminal before first boot into the desktop.
+- The screenshot shortcuts (Cmd+Shift+3 / 4 / 5) need the XFCE session to be
+  running. They won't work from a pure terminal before first boot into the
+  desktop.
 
 ---
 
