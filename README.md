@@ -793,7 +793,13 @@ For full release details and downloads, see [GitHub Releases](https://github.com
 
 ## Contributing
 
-Pull requests welcome. If you test this on a different Intel MacBook model
+Pull requests welcome. `python3 -m unittest discover -s tests` runs the
+tests (standard library only): they check that the keyd config and
+`app.conf` that `setup.sh` writes are valid keyd 2.5.0, since keyd skips a
+line it can't parse instead of failing. GitHub runs them on every pull
+request.
+
+If you test this on a different Intel MacBook model
 please open an issue with your model (run: sudo dmidecode -s
 system-product-name) and whether it worked, so the tested hardware list
 can be updated.
