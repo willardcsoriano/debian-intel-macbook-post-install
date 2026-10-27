@@ -1471,6 +1471,165 @@ EOF
 sudo chmod +x /etc/systemd/system-sleep/kbd-backlight-suspend
 print_ok "Keyboard backlight will turn off during suspend and restore on resume"
 
+# The keyboard backlight also stays lit while the display is off, since nothing
+# ties the two together. On a Mac it goes dark with the display. A small
+# watcher started with the desktop reads the panel's power state from the
+# kernel (DRM), which is true whichever display server drives the screen, the
+# lock screen's included, and switches the light through UPower: UPower puts no
+# authorization on the keyboard light, so this works without root, extra
+# groups, or an active session.
+KBD_WATCH="/usr/local/bin/kbd-backlight-follow-display"
+if compgen -G "/sys/class/leds/*kbd_backlight" > /dev/null; then
+    install_pkg "libglib2.0-bin" "gdbus (lets the keyboard light follow the display)" || true
+    sudo tee "$KBD_WATCH" > /dev/null << 'KBDWATCH'
+#!/usr/bin/python3
+"""Turn the keyboard backlight off while the display is off, and restore it
+when the display wakes. Installed and started at login by
+debian-intel-macbook-post-install; exits when its login session ends."""
+import glob
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+POLL_SECONDS = 2
+DRM_DIR = "/sys/class/drm"
+SESSIONS_DIR = "/run/systemd/sessions"
+UPOWER = ["gdbus", "call", "--system", "--dest", "org.freedesktop.UPower",
+          "--object-path", "/org/freedesktop/UPower/KbdBacklight", "--method"]
+IFACE = "org.freedesktop.UPower.KbdBacklight."
+
+
+def decide(display_on, brightness, saved):
+    """One poll. saved is the level to restore, or None when this watcher
+    hasn't dimmed the light. Returns (level to set or None, new saved)."""
+    if not display_on:
+        if saved is None and brightness > 0:
+            return 0, brightness
+        return None, saved
+    if saved is not None:
+        # Restore only if the light is still off: a level set meanwhile wins.
+        return (saved if brightness == 0 else None), None
+    return None, None
+
+
+def display_is_on(drm_dir=DRM_DIR):
+    """True while any enabled display output is powered, per the kernel. With
+    no readable output, assume on: never dim on a guess."""
+    states = []
+    for output in glob.glob(os.path.join(drm_dir, "card*-*")):
+        try:
+            with open(os.path.join(output, "enabled")) as f:
+                enabled = f.read().strip()
+            with open(os.path.join(output, "dpms")) as f:
+                dpms = f.read().strip()
+        except OSError:
+            continue
+        if enabled == "enabled":
+            states.append(dpms)
+    return not states or "On" in states
+
+
+def session_alive(session_id, sessions_dir=SESSIONS_DIR):
+    """False once logind has closed (or is closing) the session."""
+    try:
+        with open(os.path.join(sessions_dir, session_id)) as f:
+            return "STATE=closing" not in f.read().split("\n")
+    except OSError:
+        return False
+
+
+def upower(method, *args):
+    out = subprocess.run(UPOWER + [IFACE + method, *map(str, args)],
+                         capture_output=True, text=True, check=True).stdout
+    numbers = re.findall(r"-?\d+", out)
+    return int(numbers[0]) if numbers else None
+
+
+def main():
+    session = os.environ.get("XDG_SESSION_ID", "")
+    try:
+        upower("GetMaxBrightness")
+    except (subprocess.CalledProcessError, OSError) as err:
+        print(f"kbd-backlight-follow-display: no keyboard backlight: {err}", file=sys.stderr)
+        return 0
+    saved = None
+
+    def restore_and_exit(*_):
+        if saved is not None and upower("GetBrightness") == 0:
+            upower("SetBrightness", saved)
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, restore_and_exit)
+    signal.signal(signal.SIGINT, restore_and_exit)
+    while not session or session_alive(session):
+        try:
+            level, saved = decide(display_is_on(), upower("GetBrightness"), saved)
+            if level is not None:
+                upower("SetBrightness", level)
+        except (subprocess.CalledProcessError, OSError):
+            pass  # UPower briefly unavailable; try again next poll
+        time.sleep(POLL_SECONDS)
+    restore_and_exit()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+KBDWATCH
+    sudo chmod 755 "$KBD_WATCH"
+    mkdir -p "$ACTUAL_HOME/.config/autostart"
+    cat > "$ACTUAL_HOME/.config/autostart/kbd-backlight-follow-display.desktop" << KBD_AUTOSTART
+[Desktop Entry]
+Type=Application
+Name=Keyboard light follows display
+Comment=Turns the keyboard backlight off while the display is off (debian-intel-macbook-post-install)
+Exec=$KBD_WATCH
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+KBD_AUTOSTART
+    print_ok "Keyboard backlight will turn off with the display (from your next login)"
+fi
+
+# The lock screen (lightdm-gtk-greeter) only blanks the display: black, but the
+# panel stays powered, so the keyboard watcher can't tell and the screen keeps
+# drawing power. LightDM runs greeter-setup-script as root on each lock and
+# login screen's display before the greeter starts; use it to power the
+# display off after a minute without input, as a Mac does at the lock screen.
+# LightDM reads its config when it starts, so this applies from the next boot.
+if is_installed lightdm; then
+    install_pkg "x11-xserver-utils" "xset (display power control)" || true
+    GREETER_SCRIPT="/usr/local/lib/macbook-postinstall/greeter-display-sleep"
+    GREETER_SCRIPT_CONTENT='#!/bin/sh
+# Managed by debian-intel-macbook-post-install. Run by LightDM as root on the
+# greeter display (greeter-setup-script): power the display off after a minute
+# without input. Always exits 0, so it can never keep the greeter from starting.
+xset +dpms dpms 60 60 60 2>/dev/null
+exit 0'
+    LIGHTDM_CONF="/etc/lightdm/lightdm.conf.d/50-macbook-postinstall.conf"
+    LIGHTDM_CONTENT="# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+[Seat:*]
+greeter-setup-script=$GREETER_SCRIPT"
+    if [ "$(cat "$GREETER_SCRIPT" 2>/dev/null)" = "$GREETER_SCRIPT_CONTENT" ] \
+        && [ "$(cat "$LIGHTDM_CONF" 2>/dev/null)" = "$LIGHTDM_CONTENT" ]; then
+        print_skip "Lock screen display sleep"
+    else
+        sudo mkdir -p "$(dirname "$GREETER_SCRIPT")" "$(dirname "$LIGHTDM_CONF")"
+        printf '%s\n' "$GREETER_SCRIPT_CONTENT" | sudo tee "$GREETER_SCRIPT" > /dev/null
+        sudo chmod 755 "$GREETER_SCRIPT"
+        printf '%s\n' "$LIGHTDM_CONTENT" | sudo tee "$LIGHTDM_CONF" > /dev/null
+        # Another config file that LightDM reads later could override this:
+        # check what LightDM itself will use.
+        if /usr/sbin/lightdm --show-config 2>/dev/null | grep -q "greeter-setup-script=$GREETER_SCRIPT\$"; then
+            print_ok "Lock screen turns the display off after a minute idle (after reboot)"
+            REBOOT_REQUIRED=true
+        else
+            print_warning "LightDM isn't using $LIGHTDM_CONF (another greeter-setup-script overrides it) -- lock screen display sleep not set"
+        fi
+    fi
+fi
+
 # sleep.conf is re-read by systemd-logind on demand, so no restart needed.
 # (Restarting systemd-logind can terminate the active user session.)
 print_ok "Power management changes will take effect after reboot"
