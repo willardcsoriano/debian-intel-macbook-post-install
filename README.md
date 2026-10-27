@@ -672,6 +672,18 @@ means it survives kernel updates without any manual intervention.
 - xfce4-battery-plugin — battery level and charging status in taskbar
 - xfce4-power-manager — lid close triggers suspend and screen lock.
   Password required on wake.
+- Keyboard backlight follows the display, as on a Mac. A sleep hook turns it
+  off during suspend, and a small watcher started at login
+  (`/usr/local/bin/kbd-backlight-follow-display`) turns it off while the
+  display is powered off, then restores your level when it wakes. If you
+  change the level while the display was off, yours wins. The watcher reads
+  the panel's power state from the kernel, so it sees the lock screen too, and
+  switches the light through UPower, so it needs no root or extra groups.
+- The lock screen powers the display off after a minute without input, as a
+  Mac does. LightDM's greeter only blanks the screen (black, but the panel
+  stays lit and drawing power); a `greeter-setup-script`
+  (`/etc/lightdm/lightdm.conf.d/50-macbook-postinstall.conf`) sets display
+  power saving on each lock and login screen. It applies from the next boot.
 
 ### System Monitoring
 - xfce4-taskmanager — GUI task manager, similar to Activity Monitor
@@ -796,8 +808,8 @@ For full release details and downloads, see [GitHub Releases](https://github.com
 Pull requests welcome. `python3 -m unittest discover -s tests` runs the
 tests (standard library only): they check that the keyd config and
 `app.conf` that `setup.sh` writes are valid keyd 2.5.0, since keyd skips a
-line it can't parse instead of failing. GitHub runs them on every pull
-request.
+line it can't parse instead of failing, and they test the keyboard-backlight
+watcher. GitHub runs them on every pull request.
 
 If you test this on a different Intel MacBook model
 please open an issue with your model (run: sudo dmidecode -s
