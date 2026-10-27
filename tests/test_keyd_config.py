@@ -4,7 +4,10 @@ and the validator itself catches the mistakes it exists for.
     python3 -m unittest discover -s tests
 """
 import os
+import shlex
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -65,6 +68,36 @@ class ValidatorCatchesMistakes(unittest.TestCase):
     def test_app_conf_unknown_layer(self):
         errors, _ = keyd_validate.validate("[thunar]\nnav.a = b\n", "app", KEYS, ["cmd"])
         self.assertTrue(errors)
+
+
+class FolderKeys(unittest.TestCase):
+    """setup.sh's folder_key, which writes a Files key that types a folder's
+    path: run with xdg-user-dir stubbed to answer each path."""
+
+    def folder_key(self, answer):
+        lines = setup_extract.setup_text().split("\n")
+        start = lines.index("        folder_key() {")
+        end = lines.index("        }", start)
+        bindir = tempfile.mkdtemp()
+        with open(os.path.join(bindir, "xdg-user-dir"), "w") as f:
+            f.write(f"#!/bin/sh\nprintf '%s\\n' {shlex.quote(answer)}\n")
+        os.chmod(os.path.join(bindir, "xdg-user-dir"), 0o755)
+        script = "\n".join(lines[start:end + 1]) + "\nfolder_key cmd+option.l DOWNLOAD Downloads\n"
+        env = dict(os.environ, PATH=bindir + ":/usr/bin:/bin", ACTUAL_HOME="/home/u")
+        return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True,
+                              check=True).stdout.strip()
+
+    def test_plain_path_is_typed(self):
+        self.assertEqual(self.folder_key("/home/u/Downloads"),
+                         "cmd+option.l = macro(C-l 50ms /home/u/Downloads enter)")
+
+    def test_unknown_dir_falls_back_to_home(self):
+        self.assertEqual(self.folder_key(""), "cmd+option.l = macro(C-l 50ms /home/u/Downloads enter)")
+
+    def test_path_keyd_cant_type_is_left_out(self):
+        for path in ("/home/u/My Downloads", "/home/u/Down(loads)", "/home/u/Téléchargements", "/x;rm"):
+            with self.subTest(path=path):
+                self.assertTrue(self.folder_key(path).startswith("# cmd+option.l:"))
 
 
 class HeredocRendering(unittest.TestCase):

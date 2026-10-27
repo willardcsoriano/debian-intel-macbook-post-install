@@ -914,6 +914,9 @@ install_pkg "python3-xlib" "python3-xlib (lets the terminal get its own Mac keys
 #   desktops); everything else stays Ctrl, so Ctrl+C still stops a program.
 # - keyd only emits keys. Anything that launches a program (F3, screenshots)
 #   emits a combo that XFCE binds below, so it runs as you, not as root.
+# - Fn (Globe) is a layer for the macOS Fn shortcuts. The keyboard translates
+#   Fn+arrows, Fn+Backspace and Fn+F1-F12 itself, before keyd sees them.
+# The full audit against Apple's shortcut list: docs/apple-shortcuts.tsv.
 # Composite layers ([cmd+shift] ...) must come after the layers they combine.
 KEYD_CONF="/etc/keyd/default.conf"
 if [ -f "$KEYD_CONF" ] && [ ! -f "$KEYD_CONF.bak" ]; then
@@ -934,11 +937,16 @@ sudo tee "$KEYD_CONF" > /dev/null << EOF
 meta = layer(cmd)
 # Left Option: word keys and the app switcher (see above)
 leftalt = layer(option)
+# Fn (Globe)
+fn = layer(globe)
 
 # F3 (Mission Control): Super+W, which XFCE binds to the rofi window switcher
 scale = M-w
 # F4 (Launchpad): the app finder
 dashboard = A-f2
+# Fn+F11: show the desktop, as on a Mac (F11 alone is volume down). Apps lose
+# plain F11; Ctrl+Cmd+F is full screen.
+f11 = C-A-d
 
 # Brightness keys (via sysfs)
 brightnessdown = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val > 200 ? val - 200 : 100)) | tee /sys/class/backlight/intel_backlight/brightness')
@@ -957,11 +965,13 @@ backspace = macro(S-home delete)
 # Tab is left as Ctrl+Tab: next tab (Cmd+Shift+Tab: previous)
 # Windows of the current app: hold Cmd, tap the grave key (XFCE's Super+Tab switcher)
 grave = swapm(app_windows, M-tab)
-# Hide / minimize
-h = A-f9
+# Hide the front app (all its windows, via mac-hide below) / minimize the window
+h = M-S-h
 m = A-f9
 # Cmd+Mission Control (F3): show the desktop
 scale = C-A-d
+# Cmd+Brightness Down: display arrangement and mirroring (XFCE's Super+P)
+brightnessdown = M-p
 
 [option]
 # Word navigation and word delete (Fn+Backspace is forward delete)
@@ -969,8 +979,20 @@ left = C-left
 right = C-right
 backspace = C-backspace
 delete = C-delete
+# Paragraph start / end
+up = C-up
+down = C-down
 # App switcher: hold Option, tap Tab to cycle (Alt stays held until Option is released)
 tab = swapm(app_switch, A-tab)
+# Option + a top-row key opens its settings (XFCE runs these, see below)
+brightnessdown = M-A-1
+brightnessup = M-A-1
+volumedown = M-A-2
+volumeup = M-A-2
+mute = M-A-2
+kbdillumdown = M-A-3
+kbdillumup = M-A-3
+scale = M-A-4
 
 [app_switch:A]
 
@@ -998,6 +1020,11 @@ up = M-w
 down = M-tab
 left = C-A-left
 right = C-A-right
+# Fn+Control+F2: the menu bar (F10). Fn+Control+F4: the previous window
+f2 = f10
+f4 = A-tab
+# Control+Power: the restart / sleep / shut down dialog
+power = M-A-q
 
 [cmd+shift]
 # Selection to line / document edges
@@ -1010,29 +1037,72 @@ leftbrace = C-pageup
 rightbrace = C-pagedown
 # Log out (XFCE's log-out dialog asks to confirm, as on a Mac)
 q = C-A-delete
+# Help (Cmd+?)
+slash = f1
 # Screenshots: 3 = whole screen to ~/Pictures and the clipboard, 4 and 5 = Flameshot
 3 = M-3
 4 = C-A-s
 5 = C-A-s
 
 [option+shift]
-# Select by word
+# Select by word / to paragraph start and end
 left = C-S-left
 right = C-S-right
+up = C-S-up
+down = C-S-down
+# Brightness, keyboard light and volume in quarter steps
+brightnessdown = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val > 150 ? val - 50 : 100)) | tee /sys/class/backlight/intel_backlight/brightness')
+brightnessup = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val + 50 > $MAX_BRIGHTNESS ? $MAX_BRIGHTNESS : val + 50)) | tee /sys/class/backlight/intel_backlight/brightness')
+kbdillumdown = command(sh -c 'for d in /sys/class/leds/*kbd_backlight; do val=\$(cat \$d/brightness); echo \$((val > 4 ? val - 4 : 0)) | tee \$d/brightness; done')
+kbdillumup = command(sh -c 'for d in /sys/class/leds/*kbd_backlight; do val=\$(cat \$d/brightness); max=\$(cat \$d/max_brightness); echo \$((val + 4 > max ? max : val + 4)) | tee \$d/brightness; done')
+volumedown = M-A-minus
+volumeup = M-A-equal
+
+[control+shift]
+# Control+Shift+Power: display sleep
+power = M-A-z
 
 [control+cmd]
 # Lock screen / full screen
 q = C-A-l
 f = A-f11
+# Emoji and symbols
+space = M-A-e
 
 [cmd+option]
 # Force Quit: click a window to close it
 escape = C-A-escape
+# Hide every other app / minimize every window of the front app (mac-hide)
+h = M-A-h
+m = M-S-h
 # Find and Replace (Linux apps use Ctrl+H)
 f = C-h
 # Previous / next tab, as in Safari and Chrome on a Mac
 left = C-pageup
 right = C-pagedown
+# Inspector / developer tools
+i = C-S-i
+# Show or hide the Dock / the Accessibility settings (Fn+F5)
+d = M-A-d
+f5 = M-A-5
+
+[control+cmd+option]
+# Invert colors
+8 = M-A-8
+
+[cmd+option+shift]
+# Paste and Match Style: paste as plain text
+v = C-S-v
+
+[globe]
+# Fn+H: show the desktop. Fn+E: emoji. Fn+A: show or hide the Dock
+h = C-A-d
+e = M-A-e
+a = M-A-d
+
+[globe+shift]
+# Fn+Shift+A: Apps (Launchpad)
+a = A-f2
 EOF
 
 print_ok "Keyboard config written"
@@ -1057,6 +1127,244 @@ fi
 # XFCE runs the programs those combos stand for, as you.
 xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super>w' -s 'rofi -show window -show-icons' --create -t string
 xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super>3' -s "sh -c 'mkdir -p \"\$HOME/Pictures\" && flameshot full -c -p \"\$HOME/Pictures\"'" --create -t string
+
+# Cmd+H hides the front app and Cmd+Option+H every other app, as on a Mac.
+# XFCE minimizes one window at a time, so mac-hide minimizes the set: every
+# normal window of the app (by WM_CLASS) on the current desktop, never panels,
+# docks or the desktop itself.
+install_pkg "xdotool" "xdotool (minimizes windows for Cmd+H)" || true
+install_pkg "x11-utils" "xprop (reads the window list for Cmd+H)" || true
+MAC_HIDE="/usr/local/bin/mac-hide"
+sudo tee "$MAC_HIDE" > /dev/null << 'MACHIDE'
+#!/usr/bin/python3
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+"""Hide windows the way macOS does.
+
+    mac-hide app       Cmd+H: minimize every window of the front app
+    mac-hide others    Cmd+Option+H: minimize every window of the other apps
+    add --dry-run      print the window ids instead of minimizing them
+
+Only normal windows on the front window's desktop (or on all desktops) count.
+"""
+import re
+import subprocess
+import sys
+
+ALL_DESKTOPS = 0xFFFFFFFF
+
+
+def window_ids(xprop_output):
+    """Ids in an xprop WINDOW property, e.g. '..._NET_CLIENT_LIST(WINDOW): window id # 0x1, 0x2'."""
+    _, _, ids = xprop_output.partition("#")
+    return [int(x, 16) for x in re.findall(r"0x[0-9a-fA-F]+", ids)]
+
+
+def window_info(window_id, xprop_output):
+    props = {}
+    for line in xprop_output.splitlines():
+        name, sep, value = line.partition(" = ")
+        if sep:
+            props[name.split("(")[0]] = value.strip()
+    classes = re.findall(r'"((?:[^"\\]|\\.)*)"', props.get("WM_CLASS", ""))
+    desktop = props.get("_NET_WM_DESKTOP")
+    return {
+        "id": window_id,
+        # EWMH: a managed window without a type is a normal window
+        "normal": "_NET_WM_WINDOW_TYPE" not in props
+                  or "_NET_WM_WINDOW_TYPE_NORMAL" in props["_NET_WM_WINDOW_TYPE"],
+        "hidden": "_NET_WM_STATE_HIDDEN" in props.get("_NET_WM_STATE", ""),
+        "desktop": int(desktop) if desktop and desktop.isdigit() else None,
+        "wm_class": tuple(classes) or None,
+    }
+
+
+def to_hide(windows, active, mode):
+    """Ids to minimize. Nothing when the front window is not a normal window
+    (the desktop or a panel has focus)."""
+    front = next((w for w in windows if w["id"] == active), None)
+    if front is None or not front["normal"]:
+        return []
+    chosen = []
+    for w in windows:
+        if not w["normal"] or w["hidden"]:
+            continue
+        if w["desktop"] not in (front["desktop"], ALL_DESKTOPS):
+            continue
+        same_app = w["id"] == active or (front["wm_class"] is not None
+                                         and w["wm_class"] == front["wm_class"])
+        if same_app == (mode == "app"):
+            chosen.append(w["id"])
+    return chosen
+
+
+def xprop(*args):
+    return subprocess.run(["xprop", *args], capture_output=True, text=True, check=True).stdout
+
+
+def main(argv):
+    args = [a for a in argv[1:] if a != "--dry-run"]
+    if len(args) != 1 or args[0] not in ("app", "others"):
+        print(__doc__, file=sys.stderr)
+        return 2
+    active = (window_ids(xprop("-root", "_NET_ACTIVE_WINDOW")) or [0])[0]
+    windows = []
+    for wid in window_ids(xprop("-root", "_NET_CLIENT_LIST")):
+        try:
+            out = xprop("-id", hex(wid), "_NET_WM_WINDOW_TYPE", "_NET_WM_DESKTOP",
+                        "WM_CLASS", "_NET_WM_STATE")
+        except subprocess.CalledProcessError:
+            continue  # closed since the list was read
+        windows.append(window_info(wid, out))
+    for wid in to_hide(windows, active, args[0]):
+        if "--dry-run" in argv:
+            print(hex(wid))
+        else:
+            subprocess.run(["xdotool", "windowminimize", str(wid)], check=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+MACHIDE
+sudo chmod 755 "$MAC_HIDE"
+xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super><Shift>h' -s "$MAC_HIDE app" --create -t string
+xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super><Alt>h' -s "$MAC_HIDE others" --create -t string
+
+# The rest of the macOS keys that start something: keyd sends Super+Alt+<key>
+# (see the keyd config above) and XFCE runs it, as you. mac-shortcut holds the
+# three that need more than one command: the emoji picker (rofi over Debian's
+# Unicode emoji list), showing or hiding the Dock (Plank), and volume in small
+# steps that stop at 100% (PulseAudio's own step can go past it).
+install_pkg "unicode-data" "Unicode emoji list (for the emoji picker)" || true
+install_pkg "xcalib" "xcalib (Invert colors)" || true
+install_pkg "xclip" "xclip (copies the picked emoji)" || true
+MAC_SHORTCUT="/usr/local/bin/mac-shortcut"
+sudo tee "$MAC_SHORTCUT" > /dev/null << 'MACSHORTCUT'
+#!/usr/bin/python3
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+"""macOS keys that need more than one command.
+
+    mac-shortcut emoji          Ctrl+Cmd+Space / Fn+E: pick an emoji, type it
+                                and copy it to the clipboard
+    mac-shortcut toggle-dock    Option+Cmd+D / Fn+A: Dock auto-hide on or off
+    mac-shortcut volume STEP    Option+Shift+volume keys: change the volume by
+                                STEP percent (e.g. -1), between 0 and 100
+"""
+import os
+import re
+import subprocess
+import sys
+
+EMOJI_TEST = "/usr/share/unicode/emoji/emoji-test.txt"
+PLANK = "net.launchpad.plank"
+DOCK_SCHEMA = "net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/{}/"
+DOCK_DEFAULT_MODE = "'intelligent'"
+
+
+def emoji_entries(text):
+    """'😀 grinning face' for each fully-qualified emoji in emoji-test.txt."""
+    entries = []
+    for line in text.splitlines():
+        code, _, rest = line.partition("#")
+        if "; fully-qualified" not in code:
+            continue
+        parts = rest.strip().split(" ", 2)  # emoji, Unicode version, name
+        if len(parts) == 3:
+            entries.append(f"{parts[0]} {parts[2]}")
+    return entries
+
+
+def next_dock_mode(current, saved):
+    """(mode to set, mode to remember). Auto-hide on remembers the mode it
+    replaces; off restores it."""
+    if current == "'auto'":
+        return saved or DOCK_DEFAULT_MODE, None
+    return "'auto'", current
+
+
+def new_volume(pactl_output, step):
+    """The default sink's volume after a step, from `pactl get-sink-volume`."""
+    m = re.search(r"(\d+)%", pactl_output)
+    if not m:
+        raise ValueError("no volume in pactl output")
+    return max(0, min(100, int(m.group(1)) + step))
+
+
+def run(*cmd, **kw):
+    return subprocess.run(cmd, capture_output=True, text=True, check=True, **kw).stdout
+
+
+def emoji():
+    with open(EMOJI_TEST, encoding="utf-8") as f:
+        entries = emoji_entries(f.read())
+    picked = subprocess.run(["rofi", "-dmenu", "-i", "-p", "Emoji"], input="\n".join(entries),
+                            capture_output=True, text=True)
+    if picked.returncode != 0 or not picked.stdout.strip():
+        return 0  # closed without choosing
+    char = picked.stdout.split(" ", 1)[0].strip()
+    subprocess.run(["xclip", "-selection", "clipboard"], input=char, text=True, check=False)
+    subprocess.run(["xdotool", "type", "--clearmodifiers", "--", char], check=False)
+    return 0
+
+
+def toggle_dock():
+    docks = re.findall(r"'([^']+)'", run("gsettings", "get", PLANK, "enabled-docks"))
+    if not docks:
+        return 1
+    schema = DOCK_SCHEMA.format(docks[0])
+    state = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
+                         "mac-shortcut-dock-mode")
+    try:
+        with open(state) as f:
+            saved = f.read().strip() or None
+    except OSError:
+        saved = None
+    mode, remember = next_dock_mode(run("gsettings", "get", schema, "hide-mode").strip(), saved)
+    run("gsettings", "set", schema, "hide-mode", mode)
+    if remember:
+        os.makedirs(os.path.dirname(state), exist_ok=True)
+        with open(state, "w") as f:
+            f.write(remember + "\n")
+    return 0
+
+
+def volume(step):
+    level = new_volume(run("pactl", "get-sink-volume", "@DEFAULT_SINK@"), step)
+    run("pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{level}%")
+    return 0
+
+
+def main(argv):
+    if argv[1:] == ["emoji"]:
+        return emoji()
+    if argv[1:] == ["toggle-dock"]:
+        return toggle_dock()
+    if len(argv) == 3 and argv[1] == "volume" and re.fullmatch(r"[+-]?\d+", argv[2]):
+        return volume(int(argv[2]))
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+MACSHORTCUT
+sudo chmod 755 "$MAC_SHORTCUT"
+while IFS='|' read -r combo command; do
+    xfconf_set -c xfce4-keyboard-shortcuts -p "/commands/custom/$combo" -s "$command" --create -t string
+done << SHORTCUTS
+<Super><Alt>e|$MAC_SHORTCUT emoji
+<Super><Alt>d|$MAC_SHORTCUT toggle-dock
+<Super><Alt>minus|$MAC_SHORTCUT volume -1
+<Super><Alt>equal|$MAC_SHORTCUT volume +1
+<Super><Alt>z|xset dpms force off
+<Super><Alt>q|xfce4-session-logout
+<Super><Alt>1|xfce4-display-settings
+<Super><Alt>2|pavucontrol
+<Super><Alt>3|xfce4-keyboard-settings
+<Super><Alt>4|xfwm4-settings
+<Super><Alt>5|xfce4-accessibility-settings
+<Super><Alt>8|xcalib -invert -alter
+SHORTCUTS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
 # terminal Cmd+C has to copy rather than interrupt, and in Files Cmd+Backspace
@@ -1110,6 +1418,20 @@ if [ -f "$KAM_CONF" ] && [[ "$(head -n 1 "$KAM_CONF")" != "$KAM_MARKER"* ]]; the
     print_warning "Your own .config/keyd/app.conf was found -- left as is (terminal Mac keys not added)"
 else
     {
+        # A Files key that types a folder's path into the location bar. keyd
+        # types a macro's text as is, so a path with other characters is left
+        # out rather than typed wrong.
+        folder_key() {
+            # C locale: elsewhere [A-Za-z] also matches letters like é
+            local dir LC_ALL=C
+            dir=$(xdg-user-dir "$2" 2>/dev/null)
+            [ -n "$dir" ] || dir="$ACTUAL_HOME/$3"
+            if [[ "$dir" =~ ^[A-Za-z0-9/._-]+$ ]]; then
+                echo "$1 = macro(C-l 50ms $dir enter)"
+            else
+                echo "# $1: $dir has characters keyd can't type"
+            fi
+        }
         echo "$KAM_MARKER -- re-running setup.sh rewrites it."
         for term in xfce4-terminal gnome-terminal; do
             cat << APPCONF
@@ -1134,6 +1456,9 @@ cmd+shift.tab = C-pageup
 # Ctrl+arrows they send are word moves in Debian's /etc/inputrc, while Alt+F
 # (the shell's other forward-word) opens the terminal's File menu.
 option.backspace = A-backspace
+# Option+Up/Down move by paragraph elsewhere; the shell has no paragraphs
+option.up = noop
+option.down = noop
 # The control key reaches the shell unchanged, as in macOS Terminal
 control.a = C-a
 control.e = C-e
@@ -1159,6 +1484,28 @@ cmd.down = enter
 cmd.i = A-enter
 cmd.leftbrace = A-left
 cmd.rightbrace = A-right
+# Go to Folder, Home, sidebar, close all windows, make alias. The other Finder
+# keys are Files' own actions, given Finder's keys in Thunar's accels.scm.
+cmd+shift.g = C-l
+cmd+shift.h = A-home
+cmd+option.s = f9
+cmd+option.w = C-S-w
+control+cmd.a = C-A-a
+# Connect to Server: the location bar takes sftp:// and smb:// addresses
+cmd.k = C-l
+# Add to the sidebar
+control+cmd.t = C-A-b
+# Downloads / Documents: typed into the location bar
+$(folder_key cmd+option.l DOWNLOAD Downloads)
+$(folder_key cmd+shift.o DOCUMENTS Documents)
+
+[libreoffice*]
+# Spelling and grammar, and alignment (Cmd+{ and Cmd+} are tabs elsewhere)
+cmd+shift.semicolon = f7
+cmd.semicolon = f7
+cmd+shift.leftbrace = C-l
+cmd+shift.rightbrace = C-r
+cmd+shift.backslash = C-e
 
 [chromium]
 # Back / forward
@@ -1172,6 +1519,28 @@ APPCONF
     } > "$KAM_CONF"
     print_ok "Terminal Mac keys written to ~/.config/keyd/app.conf"
 fi
+
+# Finder keys in Files (Thunar): give Thunar's actions the keys Finder uses.
+# Cmd sends Ctrl, so <Primary> is Cmd. Only these actions' lines are replaced;
+# anything else in accels.scm is kept. Thunar reads it when it starts.
+THUNAR_ACCELS="$ACTUAL_HOME/.config/Thunar/accels.scm"
+mkdir -p "$(dirname "$THUNAR_ACCELS")"
+touch "$THUNAR_ACCELS"
+while IFS='|' read -r action accel; do
+    sed -i "\\|\"<Actions>/$action\"|d" "$THUNAR_ACCELS"
+    printf '(gtk_accel_path "<Actions>/%s" "%s")\n' "$action" "$accel" >> "$THUNAR_ACCELS"
+done << 'ACCELS'
+ThunarStandardView/duplicate|<Primary>d
+ThunarShortcutsPane/sendto-shortcuts|<Primary><Alt>b
+ThunarWindow/open-desktop|<Primary><Shift>d
+ThunarWindow/open-computer|<Primary><Shift>c
+ThunarWindow/open-network|<Primary><Shift>k
+ThunarWindow/open-recent|<Primary><Shift>f
+ThunarWindow/empty-trash|<Primary><Shift>BackSpace
+ThunarWindow/view-statusbar|<Primary>slash
+ThunarStandardView/make-link|<Primary><Alt>a
+ACCELS
+print_ok "Finder keys set in Files (from the next time it opens)"
 
 mkdir -p "$ACTUAL_HOME/.config/autostart"
 cat > "$ACTUAL_HOME/.config/autostart/keyd-application-mapper.desktop" << KAM_AUTOSTART
@@ -1738,7 +2107,7 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+Shift+[ / ]    Previous / next tab
   Cmd+Option+Left / Right   Previous / next tab
   Cmd+[ / ]          Back / forward (browser, Files)
-  Cmd+H or Cmd+M     Hide (minimize) window
+  Cmd+M              Minimize window
   Cmd+Space          Spotlight (app finder)
 
 ───────────────────────────────────────────────────────
@@ -1761,6 +2130,10 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+Backspace      Move to Trash
   Cmd+Up / Down      Enclosing folder / open
   Cmd+I              Properties (Get Info)
+  Cmd+D              Duplicate
+  Cmd+Shift+D / H    Desktop / Home folder
+  Cmd+Shift+G        Go to Folder
+  Cmd+Shift+Delete   Empty Trash (asks first)
 
 ───────────────────────────────────────────────────────
   IN THE TERMINAL
@@ -1779,7 +2152,9 @@ works as Cmd+<key>. Right Option is plain Alt.
   Ctrl+Up or F3      Mission Control (all windows)
   Ctrl+Down          All windows of the front app
   Ctrl+Left / Right  Previous / next desktop
-  Cmd+F3             Show the desktop
+  Cmd+F3 or Fn+H     Show the desktop
+  Cmd+H              Hide the front app
+  Cmd+Option+H       Hide every other app
   Ctrl+Cmd+F         Full screen
   Drag to an edge    Snap the window to that half
 
@@ -1808,6 +2183,8 @@ works as Cmd+<key>. Right Option is plain Alt.
   SYSTEM
 ───────────────────────────────────────────────────────
   Cmd+Option+Esc     Force quit (click the window)
+  Ctrl+Cmd+Space     Emoji picker (also Fn+E)
+  Cmd+Option+D       Dock auto-hide on / off
   Ctrl+Cmd+Q         Lock screen
   Shift+Cmd+Q        Log out (asks to confirm)
 

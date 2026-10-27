@@ -1,0 +1,206 @@
+section	apple	action	status	where	note
+Common	Command-X	Cut	native	-cmd.x	Ctrl+X
+Common	Command-C	Copy	native	-cmd.c +xfce4-terminal:cmd.c	Ctrl+C; terminals: Ctrl+Shift+C, so Ctrl+C still interrupts
+Common	Command-V	Paste	native	-cmd.v +xfce4-terminal:cmd.v	Ctrl+V; terminals: Ctrl+Shift+V
+Common	Command-Z	Undo	native	-cmd.z	Ctrl+Z
+Common	Shift-Command-Z	Redo	native	-cmd+shift.z	Ctrl+Shift+Z (LibreOffice also takes Ctrl+Y)
+Common	Command-A	Select all	native	-cmd.a	Ctrl+A
+Common	Command-F	Find	native	-cmd.f +xfce4-terminal:cmd.f	Ctrl+F; terminals: Ctrl+Shift+F
+Common	Command-G	Find next	native	-cmd.g	Ctrl+G in browsers and editors
+Common	Shift-Command-G	Find previous	native	-cmd+shift.g	Ctrl+Shift+G (in Files it is Go to Folder, as in Finder)
+Common	Command-H	Hide the front app	mapped	+cmd.h	mac-hide minimizes every window of the app on this desktop
+Common	Option-Command-H	Hide all other apps	mapped	+cmd+option.h	mac-hide
+Common	Command-M	Minimize the front window	mapped	+cmd.m	XFCE's minimize (Alt+F9)
+Common	Option-Command-M	Minimize all windows of the front app	mapped	+cmd+option.m	mac-hide
+Common	Command-O	Open	native	-cmd.o	Ctrl+O
+Common	Command-P	Print	native	-cmd.p	Ctrl+P
+Common	Command-Q	Quit the app	native	-cmd.q +xfce4-terminal:cmd.q	Ctrl+Q quits most Linux apps; terminals: Ctrl+Shift+Q
+Common	Command-S	Save	native	-cmd.s	Ctrl+S
+Common	Command-T	New tab	native	-cmd.t +xfce4-terminal:cmd.t	Ctrl+T; terminals: Ctrl+Shift+T
+Common	Command-W	Close the window (tab)	native	-cmd.w +xfce4-terminal:cmd.w	Ctrl+W closes the tab, or the window when it has one
+Common	Option-Command-W	Close all windows of the app	partial	+thunar:cmd+option.w	Files only (its Close All Windows); other apps have no such action, so it closes the tab
+Common	Option-Command-Esc	Force quit	mapped	+cmd+option.escape	click the window to close (xkill-style)
+Common	Command-Space	Spotlight	mapped	+cmd.space	the app finder
+Common	Option-Command-Space	Spotlight search in a Finder window	no-equivalent		the app finder doesn't search files; Cmd+F searches in Files
+Common	Control-Command-Space or Fn-E	Character Viewer (emoji)	mapped	+control+cmd.space +globe.e	mac-shortcut emoji: type to search, Enter types it and copies it
+Common	Control-Command-F	Full screen	mapped	+control+cmd.f	XFCE's full screen (Alt+F11)
+Common	Space bar	Quick Look	no-equivalent		Files has no previewer
+Common	Command-Tab	Switch apps	exception	+option.tab +xfce4-terminal:cmd.tab	deliberate: Option+Tab switches apps, Cmd+Tab switches tabs (see the README)
+Common	Command-Grave accent	Switch windows of the front app	mapped	+cmd.grave	hold Cmd, tap the key above Tab
+Common	Shift-Command-3	Screenshot of the screen	mapped	+cmd+shift.3	saved to ~/Pictures and copied
+Common	Shift-Command-4	Screenshot of an area	mapped	+cmd+shift.4	Flameshot
+Common	Shift-Command-5	Screenshot tools	mapped	+cmd+shift.5	Flameshot (no screen recording)
+Common	Shift-Command-N	New folder (Finder)	native	-cmd+shift.n	Files' own Ctrl+Shift+N
+Common	Control-Command-N	New folder with the selection	no-equivalent		Files has no such action
+Common	Command-Comma	Settings for the front app	partial	-cmd.comma	only in apps that bind Ctrl+Comma (VS Code and some others); most Linux apps put Preferences in a menu
+Common	Fn-Q	Quick Note	no-equivalent		no Quick Note on this desktop
+Power	Power button (press)	Turn on or wake	hardware
+Power	Power button (hold)	Force off	hardware		firmware, works without the OS
+Power	Power button (Touch ID)	Lock	no-equivalent		this MacBook has no Touch ID
+Power	Power button (hold 1.5 s) or Option-Command-Power	Sleep	partial		pressing power asks what to do (XFCE power manager); not a hold-to-sleep
+Power	Control-Shift-Power	Display sleep	unverified	+control+shift.power	sends display sleep; whether keyd sees the power key (or only the system's Power Button device does) is unchecked, and the lock follows after 5 s
+Power	Control-Power	Restart / sleep / shut down dialog	unverified	+control.power	XFCE's log-out dialog; same power-key caveat
+Power	Control-Command-Power	Force restart	skipped		no save prompt; one slip loses work
+Power	Control-Option-Command-Power	Quit all apps and shut down	skipped		quitting everything from one chord risks unsaved work in apps that don't ask
+Power	Control-Command-Q	Lock the screen	mapped	+control+cmd.q
+Power	Shift-Command-Q	Log out (asks)	mapped	+cmd+shift.q	XFCE's log-out dialog
+Power	Option-Shift-Command-Q	Log out without asking	skipped		keyd has no press-and-hold guard; one slip ends the session
+Power	Option while choosing Log Out / Restart	Skip the confirmation	no-equivalent		XFCE's menus don't change with Option
+Finder	Command-D	Duplicate	thunar	accel:ThunarStandardView/duplicate=<Primary>d	Files' "Send to side pane" loses its Ctrl+D for this
+Finder	Command-E	Eject	no-equivalent		Files has no eject action that takes a key; eject from the sidebar
+Finder	Command-F	Search	native	-cmd.f	Files' Ctrl+F
+Finder	Command-I	Get Info	mapped	+thunar:cmd.i	Files' Properties
+Finder	Command-R	Show original / reload	native	-cmd.r	Ctrl+R reloads (browsers, Files)
+Finder	Shift-Command-C	Computer	thunar	accel:ThunarWindow/open-computer=<Primary><Shift>c
+Finder	Shift-Command-D	Desktop folder	thunar	accel:ThunarWindow/open-desktop=<Primary><Shift>d
+Finder	Shift-Command-F	Recents	thunar	accel:ThunarWindow/open-recent=<Primary><Shift>f
+Finder	Shift-Command-G	Go to Folder	mapped	+thunar:cmd+shift.g	Files' location bar
+Finder	Shift-Command-H	Home folder	mapped	+thunar:cmd+shift.h
+Finder	Shift-Command-I	iCloud Drive	no-equivalent		no iCloud on Linux
+Finder	Shift-Command-K	Network	thunar	accel:ThunarWindow/open-network=<Primary><Shift>k
+Finder	Option-Command-L	Downloads	mapped	+thunar:cmd+option.l	types the Downloads path into the location bar
+Finder	Shift-Command-N	New folder	native	-cmd+shift.n	Files' Ctrl+Shift+N
+Finder	Shift-Command-O	Documents	mapped	+thunar:cmd+shift.o	types the Documents path; Files' Open in New Window loses Ctrl+Shift+O
+Finder	Shift-Command-P	Preview pane	no-equivalent		Files has no preview pane
+Finder	Shift-Command-R	AirDrop	no-equivalent		no AirDrop on Linux
+Finder	Shift-Command-T	Tab bar	no-equivalent		Files shows tabs when there are several
+Finder	Control-Shift-Command-T	Add to the Dock	no-equivalent		drag it onto Plank
+Finder	Control-Shift (in the Dock)	Dock magnification	no-equivalent		Plank has no key for zoom
+Finder	Shift-Command-U	Utilities	no-equivalent		no Utilities folder on Debian
+Finder	Option-Command-D	Show or hide the Dock	mapped	+cmd+option.d	mac-shortcut toggle-dock: Plank auto-hide on or off
+Finder	Control-Command-T	Add to the sidebar	mapped	+thunar:control+cmd.t accel:ThunarShortcutsPane/sendto-shortcuts=<Primary><Alt>b	Send to side pane
+Finder	Option-Command-P	Path bar	no-equivalent		Files always shows the path
+Finder	Option-Command-S	Sidebar	mapped	+thunar:cmd+option.s	Files' F9
+Finder	Command-Slash	Status bar	thunar	accel:ThunarWindow/view-statusbar=<Primary>slash
+Finder	Command-J	View options	no-equivalent		Files has no view-options window
+Finder	Command-K	Connect to Server	partial	+thunar:cmd.k	opens the location bar, which takes sftp:// and smb:// addresses; no server list
+Finder	Control-Command-A	Make alias	mapped	+thunar:control+cmd.a accel:ThunarStandardView/make-link=<Primary><Alt>a	a symbolic link
+Finder	Command-N	New window	native	-cmd.n	Files' Ctrl+N
+Finder	Option-Command-N	Smart Folder	no-equivalent		Files has no saved searches
+Finder	Command-T	New tab	native	-cmd.t	Files' Ctrl+T
+Finder	Option-Command-T	Toolbar	no-equivalent		Files has no toolbar toggle key
+Finder	Option-Command-V	Move the copied files here	no-equivalent		use Cmd+X, then Cmd+V
+Finder	Command-Y	Quick Look	no-equivalent		Files has no previewer
+Finder	Option-Command-Y	Quick Look slideshow	no-equivalent		Files has no previewer
+Finder	Command-1	View as icons	native	-cmd.1	Files' Ctrl+1
+Finder	Command-2	View as list	native	-cmd.2	Files' Ctrl+2
+Finder	Command-3	View as columns	partial	-cmd.3	Files' Ctrl+3 is a compact list; there is no column view
+Finder	Command-4	View as gallery	no-equivalent		Files has no gallery view
+Finder	Command-Left Bracket	Previous folder	mapped	+thunar:cmd.leftbrace	also Back in browsers
+Finder	Command-Right Bracket	Next folder	mapped	+thunar:cmd.rightbrace	also Forward in browsers
+Finder	Command-Up Arrow	Enclosing folder	mapped	+thunar:cmd.up
+Finder	Control-Command-Up Arrow	Enclosing folder in a new window	no-equivalent		Files has no such action
+Finder	Command-Down Arrow	Open the selection	mapped	+thunar:cmd.down
+Finder	Right Arrow (list view)	Open the folder	native		Files' tree view
+Finder	Left Arrow (list view)	Close the folder	native
+Finder	Command-Delete	Move to the Trash	mapped	+thunar:cmd.backspace
+Finder	Shift-Command-Delete	Empty the Trash	thunar	-cmd+shift.backspace accel:ThunarWindow/empty-trash=<Primary><Shift>BackSpace	Files asks to confirm
+Finder	Option-Shift-Command-Delete	Empty the Trash without asking	skipped		irreversible; one slip
+Finder	Command-Brightness Down	Display mirroring	partial	+cmd.brightnessdown	XFCE's display chooser (mirror, extend, one screen)
+Finder	Option-Brightness Up	Displays settings	mapped	+option.brightnessup +option.brightnessdown	XFCE's display settings
+Finder	Control-Brightness Up or Down	External display brightness	no-equivalent		needs DDC support
+Finder	Option-Shift-Brightness Up or Down	Brightness in small steps	mapped	+option+shift.brightnessup +option+shift.brightnessdown	a quarter of the normal step
+Finder	Option-Mission Control	Mission Control settings	mapped	+option.scale	XFCE's window manager settings
+Finder	Command-Mission Control or Fn-H or Fn-F11	Show the desktop	mapped	+cmd.scale +globe.h +main.f11	Fn+F11 takes plain F11 from apps, as on a Mac
+Finder	Control-Up Arrow	Mission Control	mapped	+control.up	window switcher
+Finder	Control-Down Arrow	All windows of the front app	mapped	+control.down
+Finder	Option-Volume Up	Sound settings	mapped	+option.volumeup +option.volumedown +option.mute	the sound settings (pavucontrol)
+Finder	Option-Shift-Volume Up or Down	Volume in small steps	mapped	+option+shift.volumeup +option+shift.volumedown	mac-shortcut volume: 1% steps, stopping at 100%
+Finder	Option-Keyboard Brightness Up	Keyboard settings	mapped	+option.kbdillumup +option.kbdillumdown	XFCE's keyboard settings
+Finder	Option-Shift-Keyboard Brightness Up or Down	Keyboard light in small steps	mapped	+option+shift.kbdillumup +option+shift.kbdillumdown	4 of 255 per press
+Finder	Option while double-clicking	Open and close the original window	no-equivalent		Files has no such action
+Finder	Command while double-clicking	Open a folder in a new tab	unverified		Cmd holds Ctrl; whether Files opens a tab on Ctrl+double-click is unchecked
+Finder	Command while dragging to another volume	Move instead of copy	partial		Cmd holds Ctrl, and Ctrl+drag copies in Files; Shift+drag moves
+Finder	Option while dragging	Copy	skipped		Left Option sends no modifier (an Alt-holding Option opened menus); Ctrl+drag copies
+Finder	Option-Command while dragging	Make an alias	skipped		same reason; Ctrl+Shift+drag links in Files
+Finder	Option-click a disclosure triangle	Open all subfolders	no-equivalent		Files has no such action
+Finder	Command-click the window title	Enclosing folders	no-equivalent		Files has no such action
+Finder	Command or Shift while selecting	Select several items	native		Ctrl+click, Shift+click
+Finder	Fn-A	Show or hide the Dock	mapped	+globe.a	mac-shortcut toggle-dock
+Finder	Fn-C	Control Center	no-equivalent		XFCE has no Control Center panel
+Finder	Fn-D	Dictation	no-equivalent		no dictation on this desktop
+Finder	Fn-N	Notification Center	no-equivalent		XFCE's notifications have no history panel by default
+Finder	Fn-Shift-A	Apps (Launchpad)	mapped	+globe+shift.a	the app finder, as F4
+Finder	Fn-Fn	Character Viewer	skipped		keyd can't tell a double tap from a single one, and a single tap would fire on every stray Fn press; Ctrl+Cmd+Space and Fn+E open the picker
+Finder	Command-Command	Type to Siri	no-equivalent		no Siri on Linux
+Finder	Shift-Command-6	Ask Siri about an area	no-equivalent		no Siri on Linux
+Finder	Shift-Command-Space bar	Ask Siri about the window	no-equivalent		no Siri on Linux
+Finder	Control-Space bar / Control-Option-Space bar	Previous / next input source	skipped		one input source is set up, and binding Ctrl+Space globally would take it from apps (code completion)
+Text	Command-B	Bold	native	-cmd.b	Ctrl+B
+Text	Command-I	Italic	native	-cmd.i	Ctrl+I (Get Info in Files)
+Text	Command-K	Add a link	native	-cmd.k	Ctrl+K
+Text	Command-U	Underline	native	-cmd.u	Ctrl+U
+Text	Command-T	Fonts window	no-equivalent		Cmd+T is New Tab
+Text	Command-D	Desktop folder in Open/Save dialogs	no-equivalent		a dialog has its app's window class, so Cmd+D can't mean Desktop only there; GTK's own key is Alt+D (right Option+D)
+Text	Control-Command-D	Look up a word	no-equivalent		no dictionary lookup on this desktop
+Text	Shift-Command-Colon	Spelling and Grammar	partial	+libreoffice*:cmd+shift.semicolon	LibreOffice's Spelling (F7); other apps differ
+Text	Command-Semicolon	Find misspelled words	partial	+libreoffice*:cmd.semicolon	LibreOffice's Spelling (F7)
+Text	Option-Delete	Delete the word to the left	mapped	+option.backspace
+Text	Control-H	Delete the character to the left	mapped	+control.h
+Text	Control-D	Delete the character to the right	mapped	+control.d
+Text	Fn-Delete	Forward delete	hardware		the keyboard sends Delete
+Text	Control-K	Cut to the end of the paragraph	mapped	+control.k	uses the normal clipboard; Ctrl+Y (yank) isn't mapped
+Text	Fn-Up Arrow	Page Up	hardware
+Text	Fn-Down Arrow	Page Down	hardware
+Text	Fn-Left Arrow	Home	hardware
+Text	Fn-Right Arrow	End	hardware
+Text	Command-Up Arrow	Start of the document	mapped	+cmd.up
+Text	Command-Down Arrow	End of the document	mapped	+cmd.down
+Text	Command-Left Arrow	Start of the line	mapped	+cmd.left
+Text	Command-Right Arrow	End of the line	mapped	+cmd.right
+Text	Option-Left Arrow	Previous word	mapped	+option.left
+Text	Option-Right Arrow	Next word	mapped	+option.right
+Text	Shift-Command-Up Arrow	Select to the start of the document	mapped	+cmd+shift.up
+Text	Shift-Command-Down Arrow	Select to the end of the document	mapped	+cmd+shift.down
+Text	Shift-Command-Left Arrow	Select to the start of the line	mapped	+cmd+shift.left
+Text	Shift-Command-Right Arrow	Select to the end of the line	mapped	+cmd+shift.right
+Text	Shift-Up Arrow	Extend the selection up	native
+Text	Shift-Down Arrow	Extend the selection down	native
+Text	Shift-Left Arrow	Extend the selection left	native
+Text	Shift-Right Arrow	Extend the selection right	native
+Text	Option-Shift-Up Arrow	Select to the paragraph start	mapped	+option+shift.up	Ctrl+Shift+Up; apps differ in what a paragraph is
+Text	Option-Shift-Down Arrow	Select to the paragraph end	mapped	+option+shift.down	Ctrl+Shift+Down
+Text	Option-Shift-Left Arrow	Select to the word start	mapped	+option+shift.left
+Text	Option-Shift-Right Arrow	Select to the word end	mapped	+option+shift.right
+Text	Control-A	Start of the line	mapped	+control.a
+Text	Control-E	End of the line	mapped	+control.e
+Text	Control-F	Forward a character	mapped	+control.f
+Text	Control-B	Back a character	mapped	+control.b
+Text	Control-L	Center the cursor	no-equivalent		GTK text fields have no such key
+Text	Control-P	Up a line	mapped	+control.p
+Text	Control-N	Down a line	mapped	+control.n
+Text	Control-O	Open a line	mapped	+control.o
+Text	Control-T	Swap characters	skipped		would need a cut and paste, which overwrites the clipboard
+Text	Command-Left Curly Bracket	Align left	exception	+cmd+shift.leftbrace +libreoffice*:cmd+shift.leftbrace	Previous Tab, as in Safari and Chrome; Align Left in LibreOffice
+Text	Command-Right Curly Bracket	Align right	exception	+cmd+shift.rightbrace +libreoffice*:cmd+shift.rightbrace	Next Tab; Align Right in LibreOffice
+Text	Shift-Command-Vertical bar	Center	partial	+libreoffice*:cmd+shift.backslash	LibreOffice's center (Ctrl+E)
+Text	Option-Command-F	Go to the search field	partial	+cmd+option.f	Find and Replace (Ctrl+H), as Cmd+Option+F is in Mac editors
+Text	Option-Command-T	Show or hide the toolbar	no-equivalent		no common toolbar toggle in Linux apps
+Text	Option-Command-C	Copy Style	no-equivalent		no common copy-style key in Linux apps
+Text	Option-Command-V	Paste Style	no-equivalent		no common paste-style key in Linux apps
+Text	Option-Shift-Command-V	Paste and Match Style	mapped	+cmd+option+shift.v	Ctrl+Shift+V, paste as plain text in browsers
+Text	Option-Command-I	Inspector	mapped	+cmd+option.i	developer tools (Ctrl+Shift+I), as in Chrome and Safari
+Text	Shift-Command-P	Page Setup	no-equivalent		Linux apps put page setup in the print dialog
+Text	Shift-Command-S	Save As	native	-cmd+shift.s	Ctrl+Shift+S
+Text	Shift-Command-Minus	Smaller	native	-cmd.minus	Ctrl+Minus zooms out
+Text	Shift-Command-Plus or Command-Equal	Bigger	native	-cmd.equal	Ctrl+Equal zooms in
+Text	Shift-Command-Question mark	Help	mapped	+cmd+shift.slash	F1
+Accessibility	Control-Option-Command-8	Invert colors	unverified	+control+cmd+option.8	xcalib inverts the screen's colours; pressing again should restore them (unchecked)
+Accessibility	Control-Option-Command-Comma / Period	Contrast	no-equivalent		no contrast control on this desktop
+Accessibility	Control-F2	Focus the menu bar	mapped	+control.f2	F10, the menu bar in GTK apps (press Fn too, as on a Mac)
+Accessibility	Control-F3	Focus the Dock	no-equivalent		Plank takes no keyboard focus
+Accessibility	Control-F4	Focus the next window	mapped	+control.f4	XFCE's window switch (Alt+Tab, tapped)
+Accessibility	Control-F5	Focus the toolbar	no-equivalent		no common toolbar focus key in Linux apps
+Accessibility	Control-F6	Focus the floating window	no-equivalent		no such window type on XFCE
+Accessibility	Control-Shift-F6	Focus the previous panel	no-equivalent		no such focus key in Linux apps
+Accessibility	Control-F7	Tab moves between all controls	no-equivalent		GTK always does
+Accessibility	Control-F8	Focus the status menu	no-equivalent		no such focus key on XFCE
+Accessibility	Command-Grave accent	Next window of the front app	mapped	+cmd.grave
+Accessibility	Shift-Command-Grave accent	Previous window of the front app	no-equivalent		XFCE's same-app switch jumps to the next window and has no reverse
+Accessibility	Option-Command-Grave accent	Focus the window drawer	no-equivalent		no window drawers on Linux
+Accessibility	Tab and Shift-Tab	Next / previous control	native
+Accessibility	Control-Tab	Next control from a text field	native		Ctrl+Tab
+Accessibility	Control-Shift-Tab	Previous group of controls	native
+Accessibility	Arrow keys	Adjacent item	native
+Accessibility	Control-Arrow keys	Control next to the text field	exception	+control.up +control.left	Control+arrows are Mission Control and desktops, as macOS also sets them
+Accessibility	Option-Command-F5	Accessibility Shortcuts panel	mapped	+cmd+option.f5	XFCE's accessibility settings (press Fn too)
