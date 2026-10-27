@@ -140,5 +140,32 @@ class GreeterScript(unittest.TestCase):
         self.assertIn("xset +dpms dpms 60 60 60", self.script())
 
 
+class GreeterInstallCheck(unittest.TestCase):
+    """setup.sh confirms the greeter script took effect with lightdm
+    --show-config, which prints the merged config to stderr (LightDM 1.32)."""
+
+    SHOW_CONFIG = ("   [Seat:*]\n"
+                   "B  greeter-session=lightdm-greeter\n"
+                   "C  greeter-setup-script={}\n")
+
+    def check(self, script_in_config):
+        line = next(l for l in setup_extract.setup_text().split("\n") if "lightdm --show-config" in l)
+        condition = line.strip().removeprefix("if ").removesuffix("; then")
+        bindir = tempfile.mkdtemp()
+        stub = os.path.join(bindir, "lightdm")
+        with open(stub, "w") as f:
+            f.write("#!/bin/sh\nprintf '%s' '{}' >&2\n".format(self.SHOW_CONFIG.format(script_in_config)))
+        os.chmod(stub, 0o755)
+        script = (f"GREETER_SCRIPT=/usr/local/lib/macbook-postinstall/greeter-display-sleep\n"
+                  f"if {condition.replace('/usr/sbin/lightdm', stub)}; then echo used; else echo overridden; fi")
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout.strip()
+
+    def test_sees_our_script(self):
+        self.assertEqual(self.check("/usr/local/lib/macbook-postinstall/greeter-display-sleep"), "used")
+
+    def test_sees_an_override(self):
+        self.assertEqual(self.check("/etc/other-greeter-setup"), "overridden")
+
+
 if __name__ == "__main__":
     unittest.main()

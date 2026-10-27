@@ -1620,8 +1620,8 @@ greeter-setup-script=$GREETER_SCRIPT"
         sudo chmod 755 "$GREETER_SCRIPT"
         printf '%s\n' "$LIGHTDM_CONTENT" | sudo tee "$LIGHTDM_CONF" > /dev/null
         # Another config file that LightDM reads later could override this:
-        # check what LightDM itself will use.
-        if /usr/sbin/lightdm --show-config 2>/dev/null | grep -q "greeter-setup-script=$GREETER_SCRIPT\$"; then
+        # check what LightDM itself will use (it prints the config to stderr).
+        if /usr/sbin/lightdm --show-config 2>&1 | grep -q "greeter-setup-script=$GREETER_SCRIPT\$"; then
             print_ok "Lock screen turns the display off after a minute idle (after reboot)"
             REBOOT_REQUIRED=true
         else
