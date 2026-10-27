@@ -588,6 +588,14 @@ you, never as root. Versions before this one wrote the Cmd combinations as keyd
 *chords*, which only fire when both keys go down within 50 ms, so Cmd+Space and
 Cmd+arrows never worked.
 
+**Audited against Apple's list.** [docs/apple-shortcuts.tsv](docs/apple-shortcuts.tsv)
+goes through every shortcut on Apple's
+[Mac keyboard shortcuts](https://support.apple.com/en-us/102650) page (as
+published September 14, 2026) and says how each one behaves here: mapped,
+the same Ctrl key Linux already uses, a Files action given Finder's key,
+different on purpose, or not possible and why. The tests check it against
+the config setup.sh writes, so a row can't claim a key that isn't bound.
+
 | Key | Action |
 |-----|--------|
 | Cmd+C / V / X / Z / S / F / W / Q … | Copy, paste, … (any Ctrl+key shortcut works as Cmd+key) |
