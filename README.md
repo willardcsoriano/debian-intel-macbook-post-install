@@ -398,7 +398,7 @@ the camera for a specific resolution, and the reverse-engineered
 unofficial `teams-for-linux` Electron client that mismatch makes the camera
 fail at call start even though it works in Cheese and Zoom; Chromium
 negotiates the camera more permissively and the camera works. Full writeup:
-[dotfiles/notes/teams-for-linux-camera-not-working.md](https://github.com/willardcsoriano/dotfiles/blob/master/notes/teams-for-linux-camera-not-working.md).
+[docs/teams-for-linux-camera.md](docs/teams-for-linux-camera.md).
 
 If first sign-in shows "Your account is temporarily locked to prevent unauthorized use", that's Microsoft Entra ID's Smart Lockout — a server-side account protection triggered by repeated failed sign-in attempts, unrelated to this script or the browser. It clears itself after a short cooldown; if it persists, it's a Conditional Access block or disabled account that only your org's admin can lift.
 
@@ -798,10 +798,6 @@ This script fixes all of that in one command.
 
 Step 1 — get WiFi working before running this script:
 https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline
-
-Optional — personal touchpad preferences (tap-to-click, natural scrolling,
-cursor acceleration) on top of the resume fix this script installs:
-https://github.com/willardcsoriano/dotfiles
 
 ---
 
