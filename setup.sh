@@ -1368,35 +1368,249 @@ SHORTCUTS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
 # terminal Cmd+C has to copy rather than interrupt, and in Files Cmd+Backspace
-# has to trash the selection. keyd's per-app mapper switches bindings when the
-# focused window changes. Debian packages keyd but not this script, so it is
-# fetched from keyd upstream at the version Debian ships, checksum-verified.
-KAM_VERSION="v2.5.0"
-KAM_SHA256="147778345f1fa65fb2f10992520ab4aa74be1b0fc8aa50d0282acca76e690b16"
-KAM_BIN="/usr/local/bin/keyd-application-mapper"
-if [ -x "$KAM_BIN" ] && echo "$KAM_SHA256  $KAM_BIN" | sha256sum -c --status 2>/dev/null; then
-    print_skip "keyd per-app mapper"
-else
-    KAM_TMP=$(mktemp)
-    if curl -fsSL "https://raw.githubusercontent.com/rvaiya/keyd/$KAM_VERSION/scripts/keyd-application-mapper" -o "$KAM_TMP" \
-        && echo "$KAM_SHA256  $KAM_TMP" | sha256sum -c --status; then
-        sudo install -m 755 "$KAM_TMP" "$KAM_BIN"
-        print_ok "keyd per-app mapper installed ($KAM_VERSION, checksum verified)"
-    else
-        print_fail "keyd per-app mapper (download failed or checksum mismatch -- not installed)"
-        FAILED+=("keyd per-app mapper")
-    fi
-    rm -f "$KAM_TMP"
-fi
+# has to trash the selection. mac-app-keys gives keyd the bindings in
+# ~/.config/keyd/app.conf for the app in front. It replaces keyd's own
+# keyd-application-mapper, which rescanned every window on each title change
+# and fell minutes behind on a busy desktop (wrong keys, a CPU core at 100%).
+MAC_APP_KEYS="/usr/local/bin/mac-app-keys"
+sudo tee "$MAC_APP_KEYS" > /dev/null << 'MACAPPKEYS'
+#!/usr/bin/python3
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+"""Per-app Mac keys: give keyd the bindings in ~/.config/keyd/app.conf for
+the app in front, and switch them when another app comes to the front.
 
-# The mapper calls "keyd", which Debian renamed to keyd.rvaiya (the name clashes
-# with onak's keyd, Debian bug #1098982). A private shim dir on the mapper's own
-# PATH fixes that without shadowing any system-wide "keyd".
-KAM_SHIM_DIR="/usr/local/lib/macbook-postinstall/bin"
-if [ -x /usr/bin/keyd.rvaiya ] && [ "$(readlink "$KAM_SHIM_DIR/keyd" 2>/dev/null)" != "/usr/bin/keyd.rvaiya" ]; then
-    sudo mkdir -p "$KAM_SHIM_DIR"
-    sudo ln -sfn /usr/bin/keyd.rvaiya "$KAM_SHIM_DIR/keyd"
-    print_ok "keyd name shim for the per-app mapper"
+Started at login. It reacts only to the window manager's "active window
+changed" notice on the root window: never to title changes, and it never
+walks the window tree, so it stays idle while windows redraw. SIGUSR1
+applies the front app's keys again (keyd forgets them when it restarts).
+
+    mac-app-keys                 run
+    mac-app-keys --show CLASS    print the bindings for a window class
+"""
+import fcntl
+import fnmatch
+import os
+import re
+import select
+import shutil
+import signal
+import subprocess
+import sys
+
+CONFIG = os.path.expanduser("~/.config/keyd/app.conf")
+PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
+                       "mac-app-keys.pid")
+
+
+def log(message):
+    print(f"mac-app-keys: {message}", file=sys.stderr, flush=True)
+
+
+def normalize_class(wm_class):
+    """The section names app.conf uses: 'Xfce4-terminal' -> 'xfce4-terminal'."""
+    return re.sub(r"[^A-Za-z0-9]+", "-", wm_class).strip("-").lower()
+
+
+def parse_config(text):
+    """([(class pattern, [bindings])] in file order, [problems]). A
+    [class|title] section is skipped: matching titles would mean reacting to
+    every title change, which is what made keyd's own mapper fall behind."""
+    sections, problems, current, skipping = [], [], None, False
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            name = line[1:-1].strip()
+            skipping = "|" in name
+            if skipping:
+                problems.append(f"line {n}: [{name}] matches a window title, which isn't supported; skipped")
+                current = None
+            else:
+                current = []
+                sections.append((name, current))
+        elif current is not None:
+            current.append(line)
+        elif not skipping:
+            problems.append(f"line {n}: binding outside a section; skipped")
+    return sections, problems
+
+
+def bindings_for(sections, app_class):
+    """Every matching section's bindings, in file order."""
+    found = []
+    for pattern, bindings in sections:
+        if fnmatch.fnmatchcase(app_class, pattern):
+            found.extend(bindings)
+    return found
+
+
+class Config:
+    """app.conf, read again whenever the file changes."""
+
+    def __init__(self, path):
+        self.path, self.stamp, self.sections = path, None, []
+
+    def current(self):
+        try:
+            st = os.stat(self.path)
+            stamp = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            stamp = None
+        if stamp != self.stamp:
+            self.stamp = stamp
+            self.sections = []
+            if stamp is None:
+                log(f"{self.path} not found: no per-app keys")
+            else:
+                with open(self.path, encoding="utf-8") as f:
+                    self.sections, problems = parse_config(f.read())
+                for p in problems:
+                    log(f"{self.path}: {p}")
+        return self.sections
+
+
+class Keyd:
+    """Applies bindings with `keyd bind`, skipping a call that would change
+    nothing. A failed call is retried at the next chance."""
+
+    def __init__(self, command):
+        self.command, self.applied = command, None
+
+    def apply(self, bindings, force=False):
+        bindings = tuple(bindings)
+        if bindings == self.applied and not force:
+            return True
+        try:
+            result = subprocess.run([*self.command, "bind", "reset", *bindings],
+                                    capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired) as err:
+            log(f"keyd bind: {err}")
+            self.applied = None
+            return False
+        if result.returncode != 0:
+            log(f"keyd bind: {(result.stderr or result.stdout).strip()}")
+            self.applied = None
+            return False
+        self.applied = bindings
+        return True
+
+
+def keyd_command():
+    """Debian names the binary keyd.rvaiya (keyd clashes with another package)."""
+    for name in ("keyd.rvaiya", "keyd"):
+        path = shutil.which(name)
+        if path:
+            return [path]
+    return None
+
+
+def take_lock(path):
+    """The pid file, locked for as long as this process runs; None when
+    another instance holds it."""
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        return None
+    os.ftruncate(fd, 0)
+    os.write(fd, f"{os.getpid()}\n".encode())
+    return fd
+
+
+def run():
+    from Xlib import X, Xatom, display, error
+
+    command = keyd_command()
+    if command is None:
+        log("keyd is not installed")
+        return 1
+    if take_lock(PIDFILE) is None:
+        log("already running")
+        return 0
+    dpy = display.Display()
+    dpy.set_error_handler(lambda err, request: None)  # a window can vanish mid-query
+    root = dpy.screen().root
+    active = dpy.intern_atom("_NET_ACTIVE_WINDOW")
+    root.change_attributes(event_mask=X.PropertyChangeMask)
+
+    def front_class():
+        try:
+            prop = root.get_full_property(active, Xatom.WINDOW)
+            if not prop or not prop.value or not prop.value[0]:
+                return ""
+            wm_class = dpy.create_resource_object("window", prop.value[0]).get_wm_class()
+        except error.XError:
+            return ""
+        return normalize_class(wm_class[1]) if wm_class else ""
+
+    config, keyd = Config(CONFIG), Keyd(command)
+    wake_r, wake_w = os.pipe()
+    signal.signal(signal.SIGUSR1, lambda *_: os.write(wake_w, b"u"))
+    signal.signal(signal.SIGTERM, lambda *_: os.write(wake_w, b"t"))
+    signal.signal(signal.SIGINT, lambda *_: os.write(wake_w, b"t"))
+
+    changed, force = True, True
+    while True:
+        # Drain everything queued, then update once: a burst of focus
+        # changes costs one keyd call, not one per event.
+        while dpy.pending_events():
+            event = dpy.next_event()
+            if event.type == X.PropertyNotify and event.atom == active:
+                changed = True
+        if changed or force:
+            keyd.apply(bindings_for(config.current(), front_class()), force)
+            changed = force = False
+        if dpy.pending_events():
+            continue  # arrived while asking X for the class
+        ready, _, _ = select.select([dpy.fileno(), wake_r], [], [])
+        if wake_r in ready:
+            signals = os.read(wake_r, 64)
+            if b"t" in signals:
+                keyd.apply([])  # leave no app's keys behind
+                return 0
+            force = b"u" in signals
+
+
+def main(argv):
+    if len(argv) == 3 and argv[1] == "--show":
+        with open(CONFIG, encoding="utf-8") as f:
+            sections, problems = parse_config(f.read())
+        for p in problems:
+            log(p)
+        print("\n".join(bindings_for(sections, argv[2])))
+        return 0
+    if len(argv) == 1:
+        return run()
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+MACAPPKEYS
+sudo chmod 755 "$MAC_APP_KEYS"
+
+# Retire what earlier versions installed for keyd's mapper: the script (only
+# while it is the exact v2.5.0 file they downloaded), its keyd name shim and
+# its login entry. A copy of it still running would fight mac-app-keys.
+KAM_BIN="/usr/local/bin/keyd-application-mapper"
+KAM_SHA256="147778345f1fa65fb2f10992520ab4aa74be1b0fc8aa50d0282acca76e690b16"
+if [ -f "$KAM_BIN" ] && echo "$KAM_SHA256  $KAM_BIN" | sha256sum -c --status 2>/dev/null; then
+    pkill -u "$USER" -x -f "/usr/bin/python3 $KAM_BIN -d" || true
+    sudo rm -f "$KAM_BIN"
+    rm -f "$ACTUAL_HOME/.config/keyd/app.lock" "$ACTUAL_HOME/.config/keyd/app.log"
+    print_ok "Replaced keyd's per-app mapper with mac-app-keys"
+fi
+KAM_SHIM="/usr/local/lib/macbook-postinstall/bin/keyd"
+if [ "$(readlink "$KAM_SHIM" 2>/dev/null)" = "/usr/bin/keyd.rvaiya" ]; then
+    sudo rm -f "$KAM_SHIM"
+    sudo rmdir --ignore-fail-on-non-empty "$(dirname "$KAM_SHIM")"
+fi
+KAM_AUTOSTART="$ACTUAL_HOME/.config/autostart/keyd-application-mapper.desktop"
+if grep -q "(debian-intel-macbook-post-install)" "$KAM_AUTOSTART" 2>/dev/null; then
+    rm -f "$KAM_AUTOSTART"
 fi
 
 # The mapper talks to keyd over /var/run/keyd.socket, which belongs to the keyd
@@ -1433,10 +1647,9 @@ else
             fi
         }
         echo "$KAM_MARKER -- re-running setup.sh rewrites it."
-        for term in xfce4-terminal gnome-terminal; do
-            cat << APPCONF
+        cat << APPCONF
 
-[$term]
+[xfce4-terminal]
 # Cmd+C/V copy and paste (plain Ctrl+C still interrupts), Cmd+T/N/W/Q/F tabs,
 # windows and find
 cmd.c = C-S-c
@@ -1448,10 +1661,13 @@ cmd.q = C-S-q
 cmd.f = C-S-f
 # Cmd+Backspace: delete to the start of the line, the shell way
 cmd.backspace = C-u
-# Cmd+Tab / Cmd+Shift+Tab: next / previous tab (terminals use Ctrl+PageDown/Up,
-# not the Ctrl+Tab that Cmd+Tab sends elsewhere)
-cmd.tab = C-pagedown
-cmd+shift.tab = C-pageup
+# Cmd+Tab / Cmd+Shift+Tab need nothing here: the terminal's own next / previous
+# tab keys are Ctrl+Tab / Ctrl+Shift+Tab (set below), what they send everywhere.
+# Cmd+Shift+[ / ] and Cmd+Option+Left / Right: previous / next tab
+cmd+shift.leftbrace = C-S-tab
+cmd+shift.rightbrace = C-tab
+cmd+option.left = C-S-tab
+cmd+option.right = C-tab
 # Option+Backspace: the shell's word delete. Option+arrows need no override: the
 # Ctrl+arrows they send are word moves in Debian's /etc/inputrc, while Alt+F
 # (the shell's other forward-word) opens the terminal's File menu.
@@ -1471,7 +1687,6 @@ control.d = C-d
 control.k = C-k
 control.o = C-o
 APPCONF
-        done
         cat << APPCONF
 
 [thunar]
@@ -1520,16 +1735,21 @@ APPCONF
     print_ok "Terminal Mac keys written to ~/.config/keyd/app.conf"
 fi
 
+# Give GTK app actions keys in an accels.scm file, one "action|accel" line each
+# on stdin. Cmd sends Ctrl, so <Primary> is Cmd. Only these actions' lines are
+# replaced; anything else in the file is kept. Apps read it when they start.
+set_gtk_accels() {
+    local file=$1 action accel
+    mkdir -p "$(dirname "$file")"
+    touch "$file"
+    while IFS='|' read -r action accel; do
+        sed -i "\\|\"<Actions>/$action\"|d" "$file"
+        printf '(gtk_accel_path "<Actions>/%s" "%s")\n' "$action" "$accel" >> "$file"
+    done
+}
+
 # Finder keys in Files (Thunar): give Thunar's actions the keys Finder uses.
-# Cmd sends Ctrl, so <Primary> is Cmd. Only these actions' lines are replaced;
-# anything else in accels.scm is kept. Thunar reads it when it starts.
-THUNAR_ACCELS="$ACTUAL_HOME/.config/Thunar/accels.scm"
-mkdir -p "$(dirname "$THUNAR_ACCELS")"
-touch "$THUNAR_ACCELS"
-while IFS='|' read -r action accel; do
-    sed -i "\\|\"<Actions>/$action\"|d" "$THUNAR_ACCELS"
-    printf '(gtk_accel_path "<Actions>/%s" "%s")\n' "$action" "$accel" >> "$THUNAR_ACCELS"
-done << 'ACCELS'
+set_gtk_accels "$ACTUAL_HOME/.config/Thunar/accels.scm" << 'ACCELS'
 ThunarStandardView/duplicate|<Primary>d
 ThunarShortcutsPane/sendto-shortcuts|<Primary><Alt>b
 ThunarWindow/open-desktop|<Primary><Shift>d
@@ -1542,17 +1762,46 @@ ThunarStandardView/make-link|<Primary><Alt>a
 ACCELS
 print_ok "Finder keys set in Files (from the next time it opens)"
 
+# The terminal's next / previous tab on Ctrl+Tab / Ctrl+Shift+Tab, which Cmd+Tab
+# and Cmd+Shift+Tab send everywhere: tabs switch without the per-app keys. GTK
+# sees Shift+Tab as ISO_Left_Tab, so "<Shift>Tab" would never match. The
+# terminal reads this when it starts (once every terminal window is closed).
+set_gtk_accels "$ACTUAL_HOME/.config/xfce4/terminal/accels.scm" << 'TERMINAL_ACCELS'
+terminal-window/next-tab|<Primary>Tab
+terminal-window/prev-tab|<Primary><Shift>ISO_Left_Tab
+TERMINAL_ACCELS
+print_ok "Terminal tabs on Cmd+Tab / Cmd+Shift+Tab (once every terminal window has been closed)"
+
 mkdir -p "$ACTUAL_HOME/.config/autostart"
-cat > "$ACTUAL_HOME/.config/autostart/keyd-application-mapper.desktop" << KAM_AUTOSTART
+cat > "$ACTUAL_HOME/.config/autostart/mac-app-keys.desktop" << APP_KEYS_AUTOSTART
 [Desktop Entry]
 Type=Application
-Name=keyd per-app keys
-Comment=Switches Mac keys for the focused app (debian-intel-macbook-post-install)
-Exec=env PATH=$KAM_SHIM_DIR:/usr/local/bin:/usr/bin:/bin keyd-application-mapper -d
+Name=Per-app Mac keys
+Comment=Switches Mac keys for the app in front (debian-intel-macbook-post-install)
+Exec=$MAC_APP_KEYS
 NoDisplay=true
 X-GNOME-Autostart-enabled=true
-KAM_AUTOSTART
-print_ok "Per-app mapper starts at login"
+APP_KEYS_AUTOSTART
+
+# Restart it now, so this run's helper and app.conf are what's in use and the
+# keys keyd forgot when it restarted above come back. The pid file is checked
+# against the process's command line before it is signalled.
+APP_KEYS_PIDFILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mac-app-keys.pid"
+APP_KEYS_PID=$(cat "$APP_KEYS_PIDFILE" 2>/dev/null || true)
+if [[ "$APP_KEYS_PID" =~ ^[0-9]+$ ]] \
+    && [ "$(tr '\0' ' ' < "/proc/$APP_KEYS_PID/cmdline" 2>/dev/null)" = "/usr/bin/python3 $MAC_APP_KEYS " ]; then
+    kill "$APP_KEYS_PID"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        [ -d "/proc/$APP_KEYS_PID" ] || break
+        sleep 0.2
+    done
+fi
+if [ -n "${DISPLAY:-}" ]; then
+    setsid -f "$MAC_APP_KEYS" > /dev/null 2>&1 < /dev/null
+    print_ok "Per-app keys running (and started at each login)"
+else
+    print_info "Per-app keys start at your next login"
+fi
 
 echo -e "\n  ${CYAN}Key mappings applied (full list: KEYBOARD SHORTCUTS.txt):${NC}"
 echo -e "  • Keys work as on macOS Monterey: Cmd+C, Cmd+V, Cmd+Q, Cmd+H, Cmd+Space, ..."
