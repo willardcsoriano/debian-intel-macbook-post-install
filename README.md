@@ -641,7 +641,7 @@ the config setup.sh writes, so a row can't claim a key that isn't bound.
 | Ctrl+A / E / F / B / N / P / H / D / K / O | macOS text-field keys: line start / end, move, delete, cut to end of line, open a line |
 | Ctrl+Cmd+F | Full screen |
 | Cmd+Option+Esc | Force quit (click a window) |
-| In Files: Cmd+D, Cmd+Shift+D / H / G / F / K / C / O, Cmd+Option+L, Cmd+Shift+Delete, Cmd+/, Ctrl+Cmd+T | Duplicate; Desktop, Home, Go to Folder, Recents, Network, Computer, Documents, Downloads; Empty Trash; status bar; add to sidebar |
+| In Files: Cmd+D, Cmd+Shift+D / H / G / F / K / C / O, Cmd+Option+L, Cmd+Shift+Delete, Cmd+/, Ctrl+Cmd+T, Cmd+Shift+. | Duplicate; Desktop, Home, Go to Folder, Recents, Network, Computer, Documents, Downloads; Empty Trash; status bar; add to sidebar; show hidden files |
 | In LibreOffice: Cmd+{ / } / \|, Cmd+; | Align left / right / center, Spelling |
 | F1 / F2 | Brightness down / up |
 | F3 | Window switcher (like Mission Control) |

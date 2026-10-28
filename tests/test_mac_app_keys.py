@@ -100,6 +100,9 @@ class WrittenAppConf(unittest.TestCase):
     def test_only_xfce4_terminal_gets_terminal_keys(self):
         self.assertEqual(self.bindings("gnome-terminal"), [])
 
+    def test_files_hidden_files(self):
+        self.assertIn("cmd+shift.dot = C-h", self.bindings("thunar"))
+
     def test_other_apps(self):
         self.assertIn("cmd.semicolon = f7", self.bindings("libreoffice-calc"))
         self.assertEqual(self.bindings("mousepad"), [])

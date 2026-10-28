@@ -1696,6 +1696,8 @@ APPCONF
 cmd.backspace = delete
 cmd.up = A-up
 cmd.down = enter
+# Show / hide hidden files (Files' own key is Ctrl+H; Cmd+H hides the app)
+cmd+shift.dot = C-h
 cmd.i = A-enter
 cmd.leftbrace = A-left
 cmd.rightbrace = A-right
@@ -2383,6 +2385,7 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+Shift+D / H    Desktop / Home folder
   Cmd+Shift+G        Go to Folder
   Cmd+Shift+Delete   Empty Trash (asks first)
+  Cmd+Shift+.        Show / hide hidden files
 
 ───────────────────────────────────────────────────────
   IN THE TERMINAL
