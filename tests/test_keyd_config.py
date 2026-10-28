@@ -32,10 +32,12 @@ class SetupWritesValidKeyd(unittest.TestCase):
         errors, _ = keyd_validate.validate(setup_extract.app_conf(), "app", KEYS, layers)
         self.assertEqual(errors, [])
 
-    def test_app_conf_covers_both_terminals(self):
+    def test_app_conf_covers_the_terminal_and_files(self):
         text = setup_extract.app_conf()
-        for section in ("[xfce4-terminal]", "[gnome-terminal]", "[thunar]"):
+        for section in ("[xfce4-terminal]", "[thunar]"):
             self.assertIn(section, text)
+        # GNOME Terminal is no longer installed or supported
+        self.assertNotIn("[gnome-terminal]", text)
 
 
 class ValidatorCatchesMistakes(unittest.TestCase):

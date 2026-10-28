@@ -57,8 +57,12 @@ def bindings(text, mode):
 
 
 def accels():
-    return {tuple(line.split("|", 1)) for line in
-            setup_extract.heredoc(r"^done << 'ACCELS'$", "ACCELS").splitlines()}
+    """Every action|accel pair setup.sh writes: Files' and the terminal's."""
+    found = set()
+    for terminator in ("ACCELS", "TERMINAL_ACCELS"):
+        body = setup_extract.heredoc(rf"^set_gtk_accels .* << '{terminator}'$", terminator)
+        found |= {tuple(line.split("|", 1)) for line in body.splitlines()}
+    return found
 
 
 CONF = bindings(setup_extract.keyd_config(), "conf")
@@ -138,18 +142,17 @@ class AuditMatchesConfig(unittest.TestCase):
                 self.assertIn(f"accel:{action}={accel}", audited)
 
 
-ACCEL_BLOCK_START = re.compile(r'^THUNAR_ACCELS=')
-
-
 class ThunarAccels(unittest.TestCase):
-    """Runs setup.sh's accels.scm block against a scratch home."""
+    """Runs setup.sh's set_gtk_accels and its Files call against a scratch home."""
 
     def block(self):
         lines = setup_extract.setup_text().split("\n")
-        start = [i for i, line in enumerate(lines) if ACCEL_BLOCK_START.match(line)]
-        self.assertEqual(len(start), 1)
-        end = lines.index("ACCELS", start[0])
-        return "print_ok() { :; }\n" + "\n".join(lines[start[0]:end + 1]) + "\n"
+        start = lines.index("set_gtk_accels() {")
+        call = [i for i, line in enumerate(lines) if re.match(r"^set_gtk_accels .* << 'ACCELS'$", line)]
+        self.assertEqual(len(call), 1)
+        end = lines.index("ACCELS", call[0])
+        function = lines[start:lines.index("}", start) + 1]
+        return "\n".join(function + lines[call[0]:end + 1]) + "\n"
 
     def run_block(self, home):
         subprocess.run(["bash", "-c", self.block()], env=dict(os.environ, ACTUAL_HOME=home), check=True)
@@ -174,6 +177,8 @@ class ThunarAccels(unittest.TestCase):
         self.assertIn("open-desktop-extra", text)
         self.assertNotIn("<Primary>F12", text)
         for action, accel in ACCELS:
+            if action.startswith("terminal-window/"):
+                continue  # written to the terminal's accels.scm, not Files'
             self.assertEqual(text.count(f'"<Actions>/{action}"'), 1, action)
             self.assertIn(f'(gtk_accel_path "<Actions>/{action}" "{accel}")', text)
 

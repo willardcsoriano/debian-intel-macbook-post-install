@@ -25,7 +25,7 @@ Common	Option-Command-Space	Spotlight search in a Finder window	no-equivalent		t
 Common	Control-Command-Space or Fn-E	Character Viewer (emoji)	mapped	+control+cmd.space +globe.e	mac-shortcut emoji: type to search, Enter types it and copies it
 Common	Control-Command-F	Full screen	mapped	+control+cmd.f	XFCE's full screen (Alt+F11)
 Common	Space bar	Quick Look	no-equivalent		Files has no previewer
-Common	Command-Tab	Switch apps	exception	+option.tab +xfce4-terminal:cmd.tab	deliberate: Option+Tab switches apps, Cmd+Tab switches tabs (see the README)
+Common	Command-Tab	Switch apps	exception	+option.tab -cmd.tab accel:terminal-window/next-tab=<Primary>Tab accel:terminal-window/prev-tab=<Primary><Shift>ISO_Left_Tab	deliberate: Option+Tab switches apps, Cmd+Tab switches tabs (see the README)
 Common	Command-Grave accent	Switch windows of the front app	mapped	+cmd.grave	hold Cmd, tap the key above Tab
 Common	Shift-Command-3	Screenshot of the screen	mapped	+cmd+shift.3	saved to ~/Pictures and copied
 Common	Shift-Command-4	Screenshot of an area	mapped	+cmd+shift.4	Flameshot

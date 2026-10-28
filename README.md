@@ -557,11 +557,14 @@ F keys behave unexpectedly, and text navigation shortcuts from macOS do not
 work. This script fixes all of it.
 
 - keyd — kernel-level key remapping, works before the desktop even loads
-- keyd-application-mapper — keyd's per-app companion, so the terminal gets its
-  own Mac keys. Debian packages keyd but not this script, so it is fetched from
-  keyd upstream at the version Debian ships (v2.5.0) and checksum-verified, and
-  run through a private `keyd` name shim (Debian renamed the binary to
-  `keyd.rvaiya`; see [Debian bug #1098982](https://bugs.debian.org/1098982)).
+- mac-app-keys (`/usr/local/bin/mac-app-keys`, started at login) — gives the
+  terminal, Files and a few other apps their own Mac keys by switching keyd's
+  bindings when another app comes to the front. It replaces keyd's own
+  keyd-application-mapper, which rescanned every window on each title change:
+  on a busy desktop it fell minutes behind (the terminal got the wrong keys)
+  while using a whole CPU core. mac-app-keys reacts only to the window
+  manager's "active window changed" notice, so it is idle the rest of the
+  time. Re-running the script removes the old mapper.
   It talks to keyd through the `keyd` group's socket, so your user is added to
   that group. Treat that group like sudo; you already are a sudoer.
 - python3-xlib — lets the mapper see which window is focused
@@ -638,7 +641,7 @@ the config setup.sh writes, so a row can't claim a key that isn't bound.
 | Ctrl+A / E / F / B / N / P / H / D / K / O | macOS text-field keys: line start / end, move, delete, cut to end of line, open a line |
 | Ctrl+Cmd+F | Full screen |
 | Cmd+Option+Esc | Force quit (click a window) |
-| In Files: Cmd+D, Cmd+Shift+D / H / G / F / K / C / O, Cmd+Option+L, Cmd+Shift+Delete, Cmd+/, Ctrl+Cmd+T | Duplicate; Desktop, Home, Go to Folder, Recents, Network, Computer, Documents, Downloads; Empty Trash; status bar; add to sidebar |
+| In Files: Cmd+D, Cmd+Shift+D / H / G / F / K / C / O, Cmd+Option+L, Cmd+Shift+Delete, Cmd+/, Ctrl+Cmd+T, Cmd+Shift+. | Duplicate; Desktop, Home, Go to Folder, Recents, Network, Computer, Documents, Downloads; Empty Trash; status bar; add to sidebar; show hidden files |
 | In LibreOffice: Cmd+{ / } / \|, Cmd+; | Align left / right / center, Spelling |
 | F1 / F2 | Brightness down / up |
 | F3 | Window switcher (like Mission Control) |
@@ -653,16 +656,20 @@ selection, Cmd+I shows Properties. This also keeps the text-editing
 Cmd+Backspace (Shift+Home, Delete) out of the file manager, where it would
 select every file up to the first one and trash them.
 
-**In the terminal** (xfce4-terminal and GNOME Terminal), the per-app mapper
+**In the terminal** (xfce4-terminal), mac-app-keys
 switches a few keys to what a terminal needs: Cmd+C / Cmd+V copy and paste,
 Cmd+T / N / W / Q open and close tabs and windows, Cmd+F finds,
-Cmd+Backspace deletes to the start of the line (Ctrl+U), Cmd+Tab / Cmd+Shift+Tab
-move between terminal tabs (Ctrl+PageDown / PageUp), and Option+Backspace is
+Cmd+Backspace deletes to the start of the line (Ctrl+U), and Option+Backspace is
 the shell's word delete. Option+arrows need no terminal override: they send
 Ctrl+arrows, which Debian's shell setup already treats as word moves. The control key reaches the
 shell unchanged (Ctrl+C, Ctrl+A, Ctrl+K, …), as in macOS Terminal. This needs one log-out and
 log-in after the first run. The bindings live in `~/.config/keyd/app.conf`;
-if you write your own file there, the script leaves it alone.
+if you write your own file there, the script leaves it alone. Cmd+Tab /
+Cmd+Shift+Tab move between xfce4-terminal's tabs without any of this: the
+terminal's own next / previous tab keys are set to Ctrl+Tab / Ctrl+Shift+Tab,
+which Cmd+Tab sends everywhere (in effect once every terminal window has been
+closed). GNOME Terminal, which earlier versions installed, gets no Mac keys:
+remove it (see above).
 
 ### MacBook Touchpad Resume Fix
 The bcm5974 trackpad re-enumerates as a USB device every time the lid opens
