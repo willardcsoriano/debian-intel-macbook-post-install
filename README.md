@@ -78,11 +78,11 @@ project instead.
 
 **Setup script** (required):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.11.0/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.12.0/setup.sh)
 
 **Theming script** (optional, run after first reboot):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.11.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.12.0/themes.sh)
 
 ---
 
@@ -302,7 +302,7 @@ WhiteSur GTK theme, macOS-style window controls on the left, and a
 Plank dock at the bottom — run this after the setup script completes and
 you have rebooted into the desktop:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.11.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.12.0/themes.sh)
 
 You will be prompted to choose a mode:
 
@@ -800,6 +800,7 @@ https://github.com/willardcsoriano/dotfiles
 
 ## Version History
 
+- **v1.12.0** — Mac shortcuts, not just Mac keys: Cmd+H hides the front app and Cmd+Option+H every other app; Fn is a layer (Fn+H / Fn+F11 show the desktop, Fn+E emoji, Fn+A the Dock); an emoji picker on Ctrl+Cmd+Space; Dock auto-hide on Cmd+Option+D; Option and Option+Shift with the top-row keys open their settings or take small steps; invert colors, paragraph moves, Paste and Match Style, Help and developer tools; Finder's keys in Files (Desktop, Home, Go to Folder, Downloads, Documents, Recents, Duplicate, Empty Trash) and alignment and spelling in LibreOffice. `docs/apple-shortcuts.tsv` audits every shortcut on Apple's list and says how each behaves here. The keyboard light now goes dark whenever the display is off, and the lock screen powers the display off after a minute. Tests check the generated keyd config against keyd's grammar and run the helpers against stub tools on every pull request.
 - **v1.11.0** — Make the Mac keyboard work: Cmd is a held keyd layer (the old chord bindings never fired), keys follow macOS Monterey with Cmd+Tab for the next tab and Option+Tab to switch apps, Left Option never sends a bare Alt (Option+Right opened the File menu), the control key does what it does on macOS, and keyd's per-app mapper gives the terminal, Files and browsers their own keys; F3 and screenshots no longer run as root. Take the safety snapshot for the first time (Timeshift 24.06 rejected `--tags O`), keep one per script version and only two in total, and add `--no-snapshot`. Turn on a ufw firewall. Report service and keyd results by what actually happened, and stop reinstalling multiarch packages. Curate the apps (xfce4-terminal, Mousepad, galculator; GNOME Terminal and gedit dropped), converge Desktop and dock launchers on re-run without deleting the user's own, and default text to Mousepad and images to Ristretto. Install both WhiteSur variants. Mac trackpad defaults. Restructure the README into a user guide and a reference, and add Getting Started and Keyboard Shortcuts guides to the app menu. Keep install logs in `~/.local/state`.
 - **v1.10.0** — Refuse NetworkManager changes from locked or background sessions with a polkit rule. With the screen locked, Debian's no-password network rule stops applying, and a background process could raise an admin password dialog nobody asked for. Stop versioned kernel headers from pinning the install-time kernel, so `apt autoremove` can clear superseded kernels. Drop the optional `teams.sh` (`teams-for-linux`) in favor of Teams on the web in Chromium, which is the path where the FaceTime HD camera works; the README gives removal steps for existing installs. Update links for the renamed offline WiFi kit repo, regenerate the TOC with GitHub-accurate anchors, and add the issue labeler, issue forms and PR template.
 - **v1.9.1** — Fix the `touchpad-resume` sleep hook's trigger condition: it guarded on `[ "$1" = "post" ] && [ "$2" = "resume" ]`, but systemd's sleep-hook contract never actually passes the literal string `"resume"` as the second argument (it's always the sleep action — `suspend`, `hibernate`, etc.) — so the condition could never be true and the hook has been dead code since it was written. The touchpad re-enable behavior users actually observed was coming entirely from the `xfconf` `Device_Enabled` correction earlier in the script, not from this hook. Fixed to guard on `[ "$1" = "post" ]` alone, matching the equivalent fix already applied in the `dotfiles` repo's copy of this hook.
