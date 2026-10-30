@@ -9,6 +9,8 @@ SEARCH_DIRS=(
     /usr/local/share/applications
     "$HOME/.local/share/applications"
 )
+PLANK_DOCK="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+PLANK_LAUNCHERS="$HOME/.config/plank/dock1/launchers"
 
 # ─────────────────────────────────────────────
 # MODE SELECTION
@@ -28,8 +30,10 @@ if [[ "$MODE" != "1" && "$MODE" != "2" && "$MODE" != "3" ]]; then
 fi
 
 # ─────────────────────────────────────────────
-# CURATED APP LIST (shared by all modes)
+# CURATED APP LIST (the Dock's apps)
 # ─────────────────────────────────────────────
+# The everyday apps, in Dock order. setup.sh puts the same apps on the
+# Desktop (a test keeps the two lists in step).
 
 # Each entry lists candidate .desktop basenames; the first that exists on
 # disk wins. Using the system file preserves Icon, Categories,
@@ -92,58 +96,6 @@ EOF
     echo "$sysinfo_src"
 }
 
-# Marks a .desktop file as trusted so XFCE skips the "Untrusted application
-# launcher" prompt on first click. Sets both metadata keys for compatibility
-# across XFCE versions (checksum: 4.14+, trusted flag: 4.16+).
-mark_desktop_trusted() {
-    local file=$1
-    gio set "$file" "metadata::xfce-exe-checksum" \
-        "$(sha256sum "$file" | awk '{print $1}')" 2>/dev/null || true
-    gio set "$file" "metadata::trusted" true 2>/dev/null || true
-}
-
-# Copies curated .desktop files to ~/Desktop, strips OnlyShowIn/NotShowIn,
-# and marks each file trusted. Searches all standard app directories so apps
-# installed outside /usr/share/applications are included.
-place_desktop_icons() {
-    local sysinfo_src
-    sysinfo_src=$(generate_sysinfo_launcher)
-
-    local desktop_dir="$HOME/Desktop"
-    mkdir -p "$desktop_dir"
-    for entry in "${RETIRED_APPS[@]}"; do
-        rm -f "$desktop_dir/${entry}.desktop"
-    done
-
-    for entry in "${CURATED_APPS[@]}"; do
-        for cand in $entry; do
-            for dir in "${SEARCH_DIRS[@]}"; do
-                local src="$dir/${cand}.desktop"
-                [ -f "$src" ] || continue
-                local dest="$desktop_dir/${cand}.desktop"
-                if [ ! -f "$dest" ]; then
-                    cp "$src" "$dest"
-                    chmod +x "$dest"
-                fi
-                # Strip OnlyShowIn=/NotShowIn= — some upstream launchers (notably
-                # org.gnome.Terminal with OnlyShowIn=GNOME;Unity;) would otherwise
-                # be filtered out by XFCE and never render on the desktop.
-                # Runs unconditionally so reruns repair files left by older versions.
-                sed -i -E '/^(OnlyShowIn|NotShowIn)=/d' "$dest"
-                mark_desktop_trusted "$dest"
-                break 2
-            done
-        done
-    done
-
-    if [ -n "$sysinfo_src" ] && [ -f "$sysinfo_src" ]; then
-        local sysinfo_dest="$desktop_dir/system-info.desktop"
-        cp "$sysinfo_src" "$sysinfo_dest"
-        chmod +x "$sysinfo_dest"
-        mark_desktop_trusted "$sysinfo_dest"
-    fi
-}
-
 # ─────────────────────────────────────────────
 # MODE 3 — REVERT TO VANILLA XFCE
 # ─────────────────────────────────────────────
@@ -171,7 +123,9 @@ if [[ "$MODE" == "3" ]]; then
     remove_managed_launchers ~/Desktop desktop
     rm -f ~/.local/share/applications/system-info.desktop
 
-    # Remove Plank config and autostart entry
+    # Remove Plank config and autostart entry. Its settings live in GSettings,
+    # reset here while Plank's schema is still installed.
+    gsettings reset-recursively "$PLANK_DOCK" 2>/dev/null || true
     rm -rf ~/.config/plank
     rm -f ~/.config/autostart/plank.desktop
 
@@ -206,9 +160,8 @@ X-GNOME-Autostart-enabled=true
 PANEL_DESKTOP
     fi
 
-    # Place curated shortcuts on the desktop
+    # Show desktop icons again: the shortcuts setup.sh placed
     xfconf-query -c xfce4-desktop -p /desktop-icons/style --create -t int -s 2
-    place_desktop_icons
 
     echo ""
     echo -e "\033[0;32m✔ Done.\033[0m"
@@ -341,9 +294,6 @@ fi
 # Plank keeps its settings and the order of its items in GSettings. It no
 # longer reads ~/.config/plank/dock1/settings: earlier versions of this script
 # wrote that file, and it changed nothing.
-PLANK_DOCK="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
-PLANK_LAUNCHERS="$HOME/.config/plank/dock1/launchers"
-
 # Is <name>.dockitem one this script manages (curated, retired or generated)?
 is_managed_dockitem() {
     local name=${1%.dockitem} entry cand
@@ -413,8 +363,7 @@ xfconf-query -c xfce4-desktop -p "${BASE}/rgba1" --create --force-array \
     -t double -s 0.08 -t double -s 0.08 -t double -s 0.10 -t double -s 1.0
 xfconf-query -c xfce4-desktop -p "${BASE}/image-style" --create -t int -s 0
 
-# System Info stays in the app menu; place_desktop_icons() also puts it on
-# the Desktop in Mode 1.
+# System Info stays in the app menu
 generate_sysinfo_launcher > /dev/null
 
 # ─────────────────────────────────────────────
@@ -422,10 +371,10 @@ generate_sysinfo_launcher > /dev/null
 # ─────────────────────────────────────────────
 if [[ "$MODE" == "1" ]]; then
 
-    # Keep desktop icons visible
+    # Show desktop icons: the shortcuts setup.sh placed. Remove the copies
+    # earlier versions of this script added beside them (they doubled up).
     xfconf-query -c xfce4-desktop -p /desktop-icons/style --create -t int -s 2
-
-    place_desktop_icons
+    remove_managed_launchers ~/Desktop desktop
 
     # Plank shows open apps, plus anything the user pinned
     configure_dock Default none

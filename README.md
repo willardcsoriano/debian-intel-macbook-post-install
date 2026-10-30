@@ -306,7 +306,8 @@ you have rebooted into the desktop:
 
 You will be prompted to choose a mode:
 
-- **Classic** — desktop icons visible, Plank shows open apps only
+- **Classic** — desktop icons visible (the shortcuts the setup script made),
+  Plank shows open apps only
 - **Dock** — clean empty desktop, everyday apps pinned in Plank, laid out like
   the Mac's default Dock: Files, App Finder, Chromium, Text Editor, Writer,
   Calc, Impress, Images, VLC, Calculator, Settings and the Trash. Developer and
@@ -755,14 +756,15 @@ alone.
 
 ### Desktop Shortcuts
 Shortcuts for the everyday apps are placed on your Desktop so you can
-find everything without memorizing commands: Firefox, Chromium, Files,
-Terminal, Text Editor, VS Code, Writer, Calc, Impress, VLC, Images,
-Screenshot, Calculator, Task Manager, Bluetooth, System Settings and System
-Info. Everything else is in the app menu. Re-running the script updates these
-shortcuts and removes ones older versions placed (such as htop and the image
-editor), but never touches a shortcut you made or edited yourself. First time you click a
-shortcut XFCE will show "Untrusted application launcher" — click Launch
-to confirm. It will not ask again.
+find everything without memorizing commands: Files, App Finder, Chromium,
+Text Editor, Writer, Calc, Impress, Images, VLC, Calculator and System
+Settings, the same apps the Dock holds (see themes.sh). Developer and system
+tools (Terminal, VS Code, Task Manager, Bluetooth, System Info) are in the App
+Finder. Re-running the script updates these shortcuts and removes ones older
+versions placed (such as Firefox, Terminal and htop), but never touches a
+shortcut you made or edited yourself. The shortcuts are marked trusted, so
+XFCE shouldn't ask "Untrusted application launcher"; if it does, click Launch
+and it won't ask again.
 
 ### Getting Started Guide
 A plain text file called GETTING STARTED.txt is placed on your Desktop, and

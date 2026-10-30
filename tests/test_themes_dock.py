@@ -145,6 +145,29 @@ class ConfigureDock(unittest.TestCase):
         self.assertEqual(self.setting("dock-items"), "@as []")
 
 
+# Each Dock entry's command, as setup.sh's Desktop shortcut runs it
+DOCK_TO_DESKTOP = {
+    "thunar": "thunar", "xfce4-appfinder": "xfce4-appfinder", "chromium": "chromium",
+    "org.xfce.mousepad": "mousepad", "libreoffice-writer": "libreoffice --writer",
+    "libreoffice-calc": "libreoffice --calc", "libreoffice-impress": "libreoffice --impress",
+    "org.xfce.ristretto": "ristretto", "vlc": "vlc", "galculator": "galculator",
+    "xfce-settings-manager": "xfce4-settings-manager",
+}
+
+
+class DesktopMatchesDock(unittest.TestCase):
+    def test_setup_desktop_shortcuts_are_the_dock_apps(self):
+        curated = re.findall(r'^    "([^" ]+)', block(themes_text(), r"^CURATED_APPS=\(\n.*?^\)\n"), re.M)
+        self.assertEqual(sorted(curated), sorted(DOCK_TO_DESKTOP))
+        with open(os.path.join(os.path.dirname(__file__), "..", "setup.sh"), encoding="utf-8") as f:
+            desktop = re.findall(r'^create_shortcut "[^"]+" "([^"]+)"', f.read(), re.M)
+        self.assertEqual(sorted(desktop), sorted(DOCK_TO_DESKTOP.values()))
+
+    def test_themes_adds_no_desktop_copies(self):
+        # setup.sh owns the Desktop; copies from themes.sh doubled every icon
+        self.assertNotIn("place_desktop_icons", themes_text())
+
+
 class NoDeadSettingsFile(unittest.TestCase):
     def test_the_old_settings_file_is_not_written(self):
         # Plank reads GSettings; writing the old file changed nothing
