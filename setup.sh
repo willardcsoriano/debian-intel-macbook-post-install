@@ -942,8 +942,9 @@ fn = layer(globe)
 
 # F3 (Mission Control): Super+W, which XFCE binds to the rofi window switcher
 scale = M-w
-# F4 (Launchpad): the app finder
-dashboard = A-f2
+# F4 (Launchpad): the app finder, full window with the app list (Alt+F2 is
+# XFCE's small run-a-command box, which doesn't search app names)
+dashboard = M-A-space
 # Fn+F11: show the desktop, as on a Mac (F11 alone is volume down). Apps lose
 # plain F11; Ctrl+Cmd+F is full screen.
 f11 = C-A-d
@@ -953,8 +954,8 @@ brightnessdown = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/
 brightnessup = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val + 200 > $MAX_BRIGHTNESS ? $MAX_BRIGHTNESS : val + 200)) | tee /sys/class/backlight/intel_backlight/brightness')
 
 [cmd:C]
-# Spotlight -> app finder
-space = A-f2
+# Spotlight -> app finder (full window, like F4)
+space = M-A-space
 # Line and document navigation
 left = home
 right = end
@@ -1102,7 +1103,7 @@ a = M-A-d
 
 [globe+shift]
 # Fn+Shift+A: Apps (Launchpad)
-a = A-f2
+a = M-A-space
 EOF
 
 print_ok "Keyboard config written"
@@ -1364,6 +1365,7 @@ done << SHORTCUTS
 <Super><Alt>4|xfwm4-settings
 <Super><Alt>5|xfce4-accessibility-settings
 <Super><Alt>8|xcalib -invert -alter
+<Super><Alt>space|xfce4-appfinder
 SHORTCUTS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
