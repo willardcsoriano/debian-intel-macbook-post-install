@@ -1083,6 +1083,8 @@ left = C-pageup
 right = C-pagedown
 # Inspector / developer tools
 i = C-S-i
+# Area screenshot (Flameshot), the key earlier versions gave it, beside Cmd+Shift+4 / 5
+s = C-A-s
 # Show or hide the Dock / the Accessibility settings (Fn+F5)
 d = M-A-d
 f5 = M-A-5
@@ -2432,6 +2434,7 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+Shift+3        Whole screen, saved to Pictures and
                      copied to the clipboard
   Cmd+Shift+4 or 5   Pick an area, annotate (Flameshot)
+  Cmd+Option+S       The same (the key earlier versions used)
 
 ───────────────────────────────────────────────────────
   SYSTEM

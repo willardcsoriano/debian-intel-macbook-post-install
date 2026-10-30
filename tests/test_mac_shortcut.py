@@ -191,5 +191,27 @@ class KeydReachesXfce(unittest.TestCase):
         self.assertEqual(len(normalized), len(set(normalized)))
 
 
+def keyd_layer(name):
+    """The key = value lines of one [layer] in the keyd config, as a dict."""
+    found, current = {}, None
+    for line in setup_extract.keyd_config().splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            current = line
+        elif current == f"[{name}]" and "=" in line and not line.startswith("#"):
+            key, value = (part.strip() for part in line.split("=", 1))
+            found[key] = value
+    return found
+
+
+class ScreenshotKeys(unittest.TestCase):
+    def test_area_screenshot_keys_reach_flameshot(self):
+        flameshot_on = {normalize(b) for b in re.findall(
+            r"-p '/commands/custom/([^']+)' -s 'flameshot gui'", setup_extract.setup_text())}
+        for layer, key in (("cmd+shift", "4"), ("cmd+shift", "5"), ("cmd+option", "s")):
+            with self.subTest(key=f"{layer}.{key}"):
+                self.assertIn(xfce_combo(keyd_layer(layer)[key]), flameshot_on)
+
+
 if __name__ == "__main__":
     unittest.main()
