@@ -213,5 +213,49 @@ class ScreenshotKeys(unittest.TestCase):
                 self.assertIn(xfce_combo(keyd_layer(layer)[key]), flameshot_on)
 
 
+LAUNCHER = """[Desktop Entry]
+Version=1.0
+Name[de]=Xfce-Terminal
+Name[en_GB]=Xfce Terminal
+Name=Xfce Terminal
+Comment=Use the command line
+Exec=xfce4-terminal
+[Desktop Action preferences]
+Name=Terminal Preferences
+"""
+
+
+class TerminalLauncher(unittest.TestCase):
+    def run_function(self, text):
+        function = re.search(r"^terminal_launcher\(\) \{\n.*?^\}\n", setup_extract.setup_text(),
+                             re.S | re.M).group(0)
+        path = os.path.join(tempfile.mkdtemp(), "xfce4-terminal.desktop")
+        with open(path, "w") as f:
+            f.write(text)
+        return subprocess.run(["bash", "-c", function + 'terminal_launcher "$1"', "-", path],
+                              capture_output=True, text=True, check=True).stdout
+
+    def test_english_names_become_terminal(self):
+        lines = self.run_function(LAUNCHER).splitlines()
+        self.assertIn("Name=Terminal", lines)
+        self.assertIn("Name[en_GB]=Terminal", lines)
+        self.assertNotIn("Name=Xfce Terminal", lines)
+
+    def test_everything_else_is_kept(self):
+        lines = self.run_function(LAUNCHER).splitlines()
+        self.assertEqual(lines[0], "[Desktop Entry]")
+        self.assertIn("debian-intel-macbook-post-install", lines[1])
+        for kept in ("Name[de]=Xfce-Terminal", "Exec=xfce4-terminal", "Name=Terminal Preferences"):
+            self.assertIn(kept, lines)
+        self.assertEqual(len(lines), len(LAUNCHER.splitlines()) + 1)
+
+    def test_the_installed_launcher(self):
+        installed = "/usr/share/applications/xfce4-terminal.desktop"
+        if not os.path.exists(installed):
+            self.skipTest("xfce4-terminal is not installed here")
+        with open(installed) as f:
+            self.assertIn("Name=Terminal", self.run_function(f.read()).splitlines())
+
+
 if __name__ == "__main__":
     unittest.main()

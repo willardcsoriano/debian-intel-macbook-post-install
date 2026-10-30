@@ -2286,6 +2286,23 @@ print_header "App Finder Launcher Fix"
 echo -e "  ${CYAN}Removing file argument placeholders so all apps launch cleanly from App Finder.${NC}\n"
 fix_desktop_launchers
 
+# Prints the package's xfce4-terminal launcher with its English name changed
+# from "Xfce Terminal" to "Terminal", as on a Mac. Built from the package's
+# own file every run, so the copy follows package updates.
+terminal_launcher() {
+    sed -e '1a # Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.' \
+        -e 's/^\(Name\(\[en_[A-Z][A-Z]\]\)\{0,1\}\)=Xfce Terminal$/\1=Terminal/' "$1"
+}
+TERMINAL_LAUNCHER="$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop"
+if [ ! -f /usr/share/applications/xfce4-terminal.desktop ]; then
+    print_skip "Terminal name (xfce4-terminal not installed)"
+elif [ -f "$TERMINAL_LAUNCHER" ] && ! grep -q "debian-intel-macbook-post-install" "$TERMINAL_LAUNCHER"; then
+    print_skip "Terminal name (you have your own $TERMINAL_LAUNCHER)"
+else
+    terminal_launcher /usr/share/applications/xfce4-terminal.desktop > "$TERMINAL_LAUNCHER"
+    print_ok "The terminal is listed as Terminal in the menu and App Finder"
+fi
+
 # ─────────────────────────────────────────────
 # DESKTOP SHORTCUTS
 # ─────────────────────────────────────────────

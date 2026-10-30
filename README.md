@@ -732,6 +732,11 @@ cleaned copies of affected launchers into `~/.local/share/applications`
 (per-user overrides — system files are left untouched) so every app starts
 cleanly from the App Finder.
 
+It also lists xfce4-terminal as **Terminal** (the package calls it "Xfce
+Terminal"), through a per-user copy of the package's launcher that each run
+regenerates. If you made your own `xfce4-terminal.desktop` there, it is left
+alone.
+
 ### Desktop Shortcuts
 Shortcuts for the everyday apps are placed on your Desktop so you can
 find everything without memorizing commands: Firefox, Chromium, Files,
