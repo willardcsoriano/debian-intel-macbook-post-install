@@ -620,7 +620,8 @@ the config setup.sh writes, so a row can't claim a key that isn't bound.
 | Option+Up / Down | Start / end of the paragraph |
 | + Shift | Select while moving (Cmd+Shift+Left, Option+Shift+Right, …) |
 | Cmd+Shift+3 | Whole-screen screenshot to `~/Pictures` and the clipboard |
-| Cmd+Shift+4 / 5 | Area screenshot with annotation (Flameshot) |
+| Cmd+Shift+4 / 5, Cmd+Option+S | Area screenshot with annotation (Flameshot) |
+| Cmd+Option+T | New terminal window, from anywhere |
 | Ctrl+Cmd+Q | Lock screen |
 | Shift+Cmd+Q | Log out (asks to confirm) |
 | Cmd+Option+F | Find and replace |
@@ -730,6 +731,11 @@ App Finder with no file selected they silently fail. This step writes
 cleaned copies of affected launchers into `~/.local/share/applications`
 (per-user overrides — system files are left untouched) so every app starts
 cleanly from the App Finder.
+
+It also lists xfce4-terminal as **Terminal** (the package calls it "Xfce
+Terminal"), through a per-user copy of the package's launcher that each run
+regenerates. If you made your own `xfce4-terminal.desktop` there, it is left
+alone.
 
 ### Desktop Shortcuts
 Shortcuts for the everyday apps are placed on your Desktop so you can

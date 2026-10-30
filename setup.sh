@@ -942,8 +942,9 @@ fn = layer(globe)
 
 # F3 (Mission Control): Super+W, which XFCE binds to the rofi window switcher
 scale = M-w
-# F4 (Launchpad): the app finder
-dashboard = A-f2
+# F4 (Launchpad): the app finder, full window with the app list (Alt+F2 is
+# XFCE's small run-a-command box, which doesn't search app names)
+dashboard = M-A-space
 # Fn+F11: show the desktop, as on a Mac (F11 alone is volume down). Apps lose
 # plain F11; Ctrl+Cmd+F is full screen.
 f11 = C-A-d
@@ -953,8 +954,8 @@ brightnessdown = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/
 brightnessup = command(sh -c 'val=\$(cat /sys/class/backlight/intel_backlight/brightness); echo \$((val + 200 > $MAX_BRIGHTNESS ? $MAX_BRIGHTNESS : val + 200)) | tee /sys/class/backlight/intel_backlight/brightness')
 
 [cmd:C]
-# Spotlight -> app finder
-space = A-f2
+# Spotlight -> app finder (full window, like F4)
+space = M-A-space
 # Line and document navigation
 left = home
 right = end
@@ -1082,6 +1083,10 @@ left = C-pageup
 right = C-pagedown
 # Inspector / developer tools
 i = C-S-i
+# Area screenshot (Flameshot), the key earlier versions gave it, beside Cmd+Shift+4 / 5
+s = C-A-s
+# New terminal window (macOS uses Cmd+Option+T for a toolbar toggle these apps lack)
+t = M-A-t
 # Show or hide the Dock / the Accessibility settings (Fn+F5)
 d = M-A-d
 f5 = M-A-5
@@ -1102,7 +1107,7 @@ a = M-A-d
 
 [globe+shift]
 # Fn+Shift+A: Apps (Launchpad)
-a = A-f2
+a = M-A-space
 EOF
 
 print_ok "Keyboard config written"
@@ -1364,6 +1369,8 @@ done << SHORTCUTS
 <Super><Alt>4|xfwm4-settings
 <Super><Alt>5|xfce4-accessibility-settings
 <Super><Alt>8|xcalib -invert -alter
+<Super><Alt>space|xfce4-appfinder
+<Super><Alt>t|exo-open --launch TerminalEmulator
 SHORTCUTS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
@@ -2279,6 +2286,23 @@ print_header "App Finder Launcher Fix"
 echo -e "  ${CYAN}Removing file argument placeholders so all apps launch cleanly from App Finder.${NC}\n"
 fix_desktop_launchers
 
+# Prints the package's xfce4-terminal launcher with its English name changed
+# from "Xfce Terminal" to "Terminal", as on a Mac. Built from the package's
+# own file every run, so the copy follows package updates.
+terminal_launcher() {
+    sed -e '1a # Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.' \
+        -e 's/^\(Name\(\[en_[A-Z][A-Z]\]\)\{0,1\}\)=Xfce Terminal$/\1=Terminal/' "$1"
+}
+TERMINAL_LAUNCHER="$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop"
+if [ ! -f /usr/share/applications/xfce4-terminal.desktop ]; then
+    print_skip "Terminal name (xfce4-terminal not installed)"
+elif [ -f "$TERMINAL_LAUNCHER" ] && ! grep -q "debian-intel-macbook-post-install" "$TERMINAL_LAUNCHER"; then
+    print_skip "Terminal name (you have your own $TERMINAL_LAUNCHER)"
+else
+    terminal_launcher /usr/share/applications/xfce4-terminal.desktop > "$TERMINAL_LAUNCHER"
+    print_ok "The terminal is listed as Terminal in the menu and App Finder"
+fi
+
 # ─────────────────────────────────────────────
 # DESKTOP SHORTCUTS
 # ─────────────────────────────────────────────
@@ -2360,6 +2384,7 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+[ / ]          Back / forward (browser, Files)
   Cmd+M              Minimize window
   Cmd+Space          Spotlight (app finder)
+  Cmd+Option+T       New terminal window
 
 ───────────────────────────────────────────────────────
   TEXT EDITING
@@ -2430,6 +2455,7 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+Shift+3        Whole screen, saved to Pictures and
                      copied to the clipboard
   Cmd+Shift+4 or 5   Pick an area, annotate (Flameshot)
+  Cmd+Option+S       The same (the key earlier versions used)
 
 ───────────────────────────────────────────────────────
   SYSTEM
