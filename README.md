@@ -621,6 +621,7 @@ the config setup.sh writes, so a row can't claim a key that isn't bound.
 | + Shift | Select while moving (Cmd+Shift+Left, Option+Shift+Right, …) |
 | Cmd+Shift+3 | Whole-screen screenshot to `~/Pictures` and the clipboard |
 | Cmd+Shift+4 / 5, Cmd+Option+S | Area screenshot with annotation (Flameshot) |
+| Cmd+Option+T | New terminal window, from anywhere |
 | Ctrl+Cmd+Q | Lock screen |
 | Shift+Cmd+Q | Log out (asks to confirm) |
 | Cmd+Option+F | Find and replace |

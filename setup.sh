@@ -1085,6 +1085,8 @@ right = C-pagedown
 i = C-S-i
 # Area screenshot (Flameshot), the key earlier versions gave it, beside Cmd+Shift+4 / 5
 s = C-A-s
+# New terminal window (macOS uses Cmd+Option+T for a toolbar toggle these apps lack)
+t = M-A-t
 # Show or hide the Dock / the Accessibility settings (Fn+F5)
 d = M-A-d
 f5 = M-A-5
@@ -1368,6 +1370,7 @@ done << SHORTCUTS
 <Super><Alt>5|xfce4-accessibility-settings
 <Super><Alt>8|xcalib -invert -alter
 <Super><Alt>space|xfce4-appfinder
+<Super><Alt>t|exo-open --launch TerminalEmulator
 SHORTCUTS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
@@ -2364,6 +2367,7 @@ works as Cmd+<key>. Right Option is plain Alt.
   Cmd+[ / ]          Back / forward (browser, Files)
   Cmd+M              Minimize window
   Cmd+Space          Spotlight (app finder)
+  Cmd+Option+T       New terminal window
 
 ───────────────────────────────────────────────────────
   TEXT EDITING

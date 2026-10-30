@@ -78,7 +78,7 @@ Finder	Control-Command-A	Make alias	mapped	+thunar:control+cmd.a accel:ThunarSta
 Finder	Command-N	New window	native	-cmd.n	Files' Ctrl+N
 Finder	Option-Command-N	Smart Folder	no-equivalent		Files has no saved searches
 Finder	Command-T	New tab	native	-cmd.t	Files' Ctrl+T
-Finder	Option-Command-T	Toolbar	no-equivalent		Files has no toolbar toggle key
+Finder	Option-Command-T	Toolbar	no-equivalent		Files has no toolbar toggle key; the key opens a new terminal window instead
 Finder	Option-Command-V	Move the copied files here	no-equivalent		use Cmd+X, then Cmd+V
 Finder	Command-Y	Quick Look	no-equivalent		Files has no previewer
 Finder	Option-Command-Y	Quick Look slideshow	no-equivalent		Files has no previewer
@@ -175,7 +175,7 @@ Text	Command-Left Curly Bracket	Align left	exception	+cmd+shift.leftbrace +libre
 Text	Command-Right Curly Bracket	Align right	exception	+cmd+shift.rightbrace +libreoffice*:cmd+shift.rightbrace	Next Tab; Align Right in LibreOffice
 Text	Shift-Command-Vertical bar	Center	partial	+libreoffice*:cmd+shift.backslash	LibreOffice's center (Ctrl+E)
 Text	Option-Command-F	Go to the search field	partial	+cmd+option.f	Find and Replace (Ctrl+H), as Cmd+Option+F is in Mac editors
-Text	Option-Command-T	Show or hide the toolbar	no-equivalent		no common toolbar toggle in Linux apps
+Text	Option-Command-T	Show or hide the toolbar	no-equivalent		no common toolbar toggle in Linux apps; the key opens a new terminal window instead
 Text	Option-Command-C	Copy Style	no-equivalent		no common copy-style key in Linux apps
 Text	Option-Command-V	Paste Style	no-equivalent		no common paste-style key in Linux apps
 Text	Option-Shift-Command-V	Paste and Match Style	mapped	+cmd+option+shift.v	Ctrl+Shift+V, paste as plain text in browsers
