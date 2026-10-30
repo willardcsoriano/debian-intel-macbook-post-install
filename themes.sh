@@ -35,20 +35,16 @@ fi
 # disk wins. Using the system file preserves Icon, Categories,
 # StartupWMClass, and translations.
 CURATED_APPS=(
-    "firefox-esr"
     "thunar org.xfce.thunar"
-    "xfce4-terminal"
+    "xfce4-appfinder"
+    "chromium"
     "org.xfce.mousepad mousepad"
-    "code"
     "libreoffice-writer"
     "libreoffice-calc"
     "libreoffice-impress"
-    "vlc"
     "org.xfce.ristretto ristretto"
-    "org.flameshot.Flameshot flameshot"
+    "vlc"
     "galculator"
-    "xfce4-taskmanager"
-    "blueman-manager"
     "xfce-settings-manager xfce4-settings-manager"
 )
 
@@ -60,6 +56,8 @@ RETIRED_APPS=(
     org.gnome.Terminal gnome-terminal org.gnome.gedit gedit simple-scan htop
     mtpaint gdebi gdebi-gtk xfce4-clipman org.gnome.Calculator gnome-calculator
     org.gnome.baobab baobab xfce4-display-settings
+    firefox-esr xfce4-terminal code org.flameshot.Flameshot flameshot
+    xfce4-taskmanager blueman-manager
 )
 
 # Removes every launcher this script manages from a directory: <name>.<ext>
@@ -337,20 +335,72 @@ if [ "$PANEL_CHANGED" = "1" ]; then
     xfce4-panel --restart 2>/dev/null || true
 fi
 
-# Seeds Plank's default config by starting it briefly, waiting for the
-# settings file to materialize (poll up to ~10 s), then stopping it. Using
-# a poll instead of a fixed sleep keeps this reliable on slow hardware.
-seed_plank_config() {
-    pkill plank 2>/dev/null || true
-    sleep 1
-    plank &
-    local _
-    for _ in $(seq 1 20); do
-        [ -f "$HOME/.config/plank/dock1/settings" ] && break
-        sleep 0.5
+# ─────────────────────────────────────────────
+# DOCK (Plank)
+# ─────────────────────────────────────────────
+# Plank keeps its settings and the order of its items in GSettings. It no
+# longer reads ~/.config/plank/dock1/settings: earlier versions of this script
+# wrote that file, and it changed nothing.
+PLANK_DOCK="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+PLANK_LAUNCHERS="$HOME/.config/plank/dock1/launchers"
+
+# Is <name>.dockitem one this script manages (curated, retired or generated)?
+is_managed_dockitem() {
+    local name=${1%.dockitem} entry cand
+    for entry in "${CURATED_APPS[@]}" "${RETIRED_APPS[@]}" system-info zzz-trash; do
+        for cand in $entry; do
+            [ "$cand" = "$name" ] && return 0
+        done
     done
-    pkill plank 2>/dev/null || true
-    sleep 1
+    return 1
+}
+
+# Sets the dock up: its theme, its behaviour, and its items, which are the
+# curated apps in order (when $2 is "apps"), then anything the user pinned
+# themselves, then the Trash. Items are locked so a stray drag can't remove
+# one; Plank's Preferences unlock them for pinning on purpose.
+configure_dock() {
+    local theme=$1 contents=$2 entry cand dir src item list=""
+    local -a current=() own=() items=()
+    mkdir -p "$PLANK_LAUNCHERS"
+    mapfile -t current < <(gsettings get "$PLANK_DOCK" dock-items | grep -o "'[^']*'" | tr -d "'")
+    for item in "${current[@]}"; do
+        if ! is_managed_dockitem "$item" && [ -f "$PLANK_LAUNCHERS/$item" ]; then
+            own+=("$item")
+        fi
+    done
+    remove_managed_launchers "$PLANK_LAUNCHERS" dockitem
+    rm -f "$PLANK_LAUNCHERS/zzz-trash.dockitem"
+    if [ "$contents" = apps ]; then
+        for entry in "${CURATED_APPS[@]}"; do
+            for cand in $entry; do
+                for dir in "${SEARCH_DIRS[@]}"; do
+                    src="$dir/${cand}.desktop"
+                    [ -f "$src" ] || continue
+                    printf '[PlankDockItemPreferences]\nLauncher=file://%s\n' "$src" \
+                        > "$PLANK_LAUNCHERS/${cand}.dockitem"
+                    items+=("${cand}.dockitem")
+                    break 2
+                done
+            done
+        done
+        printf '[PlankDockItemPreferences]\nLauncher=docklet://trash\n' \
+            > "$PLANK_LAUNCHERS/zzz-trash.dockitem"
+        items+=("${own[@]}" zzz-trash.dockitem)
+    else
+        items=("${own[@]}")
+    fi
+    for item in "${items[@]}"; do
+        list+="${list:+, }'$item'"
+    done
+    gsettings set "$PLANK_DOCK" dock-items "@as [$list]"
+    gsettings set "$PLANK_DOCK" theme "$theme"
+    gsettings set "$PLANK_DOCK" position bottom
+    gsettings set "$PLANK_DOCK" hide-mode intelligent
+    gsettings set "$PLANK_DOCK" icon-size 48
+    gsettings set "$PLANK_DOCK" zoom-percent 150
+    gsettings set "$PLANK_DOCK" current-workspace-only false
+    gsettings set "$PLANK_DOCK" lock-items true
 }
 
 # Wallpaper — auto-detect monitor name, apply solid near-black.
@@ -363,9 +413,9 @@ xfconf-query -c xfce4-desktop -p "${BASE}/rgba1" --create --force-array \
     -t double -s 0.08 -t double -s 0.08 -t double -s 0.10 -t double -s 1.0
 xfconf-query -c xfce4-desktop -p "${BASE}/image-style" --create -t int -s 0
 
-# System Info — generated here for Mode 2's dock launcher reference.
-# place_desktop_icons() also generates it independently for Modes 1 and 3.
-SYSINFO_SRC=$(generate_sysinfo_launcher)
+# System Info stays in the app menu; place_desktop_icons() also puts it on
+# the Desktop in Mode 1.
+generate_sysinfo_launcher > /dev/null
 
 # ─────────────────────────────────────────────
 # MODE 1 — CLASSIC
@@ -377,30 +427,8 @@ if [[ "$MODE" == "1" ]]; then
 
     place_desktop_icons
 
-    # Plank settings — default theme, shows open apps only
-    seed_plank_config
-
-    mkdir -p ~/.config/plank/dock1
-    cat > ~/.config/plank/dock1/settings << EOF
-[PlankDockPreferences]
-CurrentWorkspaceOnly=false
-IconSize=48
-HideMode=1
-UnhideDelay=0
-Monitor=
-PrimaryMonitor=true
-Position=0
-Offset=0
-Theme=Default
-ItemHoverAnimation=1
-ZoomPercent=150
-LockItems=false
-ProcessWithUrgency=true
-EOF
-
-    # No launchers in classic mode — Plank shows open apps naturally
-    remove_managed_launchers ~/.config/plank/dock1/launchers dockitem
-    rm -f ~/.config/plank/dock1/launchers/zzz-trash.dockitem
+    # Plank shows open apps, plus anything the user pinned
+    configure_dock Default none
 
 fi
 
@@ -414,69 +442,8 @@ if [[ "$MODE" == "2" ]]; then
     xfconf-query -c xfce4-desktop -p /desktop-icons/style --create -t int -s 0
     remove_managed_launchers ~/Desktop desktop
 
-    # Plank settings — transparent theme, all apps as launchers
-    seed_plank_config
-
-    mkdir -p ~/.config/plank/dock1
-    cat > ~/.config/plank/dock1/settings << EOF
-[PlankDockPreferences]
-CurrentWorkspaceOnly=false
-IconSize=48
-HideMode=1
-UnhideDelay=0
-Monitor=
-PrimaryMonitor=true
-Position=0
-Offset=0
-Theme=Transparent
-ItemHoverAnimation=1
-ZoomPercent=150
-LockItems=false
-ProcessWithUrgency=true
-EOF
-
-    # Populate Plank with the same curated list used for Mode 1 desktop icons.
-    mkdir -p ~/.config/plank/dock1/launchers
-    # Replace only the dock items this script manages; items the user pinned
-    # by hand stay in the dock.
-    remove_managed_launchers ~/.config/plank/dock1/launchers dockitem
-
-    # Sort= positions each item left-to-right; lower = leftmost. Increment as
-    # we place each launcher so curated order is preserved regardless of
-    # filename-based sorting Plank may otherwise apply.
-    sort_idx=10
-    for entry in "${CURATED_APPS[@]}"; do
-        for cand in $entry; do
-            for dir in "${SEARCH_DIRS[@]}"; do
-                src="$dir/${cand}.desktop"
-                [ -f "$src" ] || continue
-                cat > ~/.config/plank/dock1/launchers/"${cand}".dockitem << EOF
-[PlankDockItemPreferences]
-Launcher=file://${src}
-Sort=${sort_idx}
-EOF
-                sort_idx=$((sort_idx + 1))
-                break 2
-            done
-        done
-    done
-
-    # System Info dock launcher
-    if [ -n "$SYSINFO_SRC" ] && [ -f "$SYSINFO_SRC" ]; then
-        cat > ~/.config/plank/dock1/launchers/system-info.dockitem << EOF
-[PlankDockItemPreferences]
-Launcher=file://${SYSINFO_SRC}
-Sort=${sort_idx}
-EOF
-        sort_idx=$((sort_idx + 1))
-    fi
-
-    # Trash docklet — explicit high Sort so it always lands rightmost.
-    cat > ~/.config/plank/dock1/launchers/zzz-trash.dockitem << EOF
-[PlankDockItemPreferences]
-Launcher=docklet://trash
-Sort=9999
-EOF
+    # Plank holds the curated apps, then the user's own pins, then the Trash
+    configure_dock Transparent apps
 
 fi
 

@@ -307,7 +307,10 @@ you have rebooted into the desktop:
 You will be prompted to choose a mode:
 
 - **Classic** — desktop icons visible, Plank shows open apps only
-- **Dock** — clean empty desktop, all apps pinned in Plank
+- **Dock** — clean empty desktop, everyday apps pinned in Plank, laid out like
+  the Mac's default Dock: Files, App Finder, Chromium, Text Editor, Writer,
+  Calc, Impress, Images, VLC, Calculator, Settings and the Trash. Developer and
+  system tools (Terminal, VS Code, Task Manager) stay in the App Finder
 - **Revert** — removes all themes and restores vanilla XFCE
 
 Both the light and dark variants of WhiteSur are installed, and dark is
@@ -326,6 +329,18 @@ different mode or choose Revert. Re-running replaces only the desktop
 launchers and dock items the script placed itself; anything you pinned to the
 dock or put on the Desktop by hand stays. Re-running does reset the Plank
 dock settings and the solid wallpaper colour to the script's defaults.
+
+The dock's icons are locked, so an icon dragged off by accident stays put. To
+pin or remove one on purpose, turn the lock off in Plank's Preferences (hold
+Ctrl and right-click the dock), make the change, and turn it back on. The same
+switch from a terminal:
+
+    gsettings set net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/ lock-items false
+
+(`true` locks it again).
+
+On a Mac the bar at the bottom is the Dock and the one at the top the menu
+bar. Here the Dock is drawn by Plank, and the top bar is the XFCE panel.
 
 ### Default apps
 
