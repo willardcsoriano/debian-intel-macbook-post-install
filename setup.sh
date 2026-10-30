@@ -2342,7 +2342,10 @@ retire_shortcut "Image Editor" "mtpaint"
 # Default apps: plain text opened in LibreOffice Writer and images in
 # ImageMagick's bare viewer. Point them at the light XFCE apps, for every MIME
 # type each one declares it handles -- unless the user already chose a default.
-print_info "Setting default apps for text files and images (where none is chosen yet)..."
+# Web pages open in Chromium: the MacBook camera works in Microsoft Teams there,
+# not in Firefox (docs/teams-for-linux-camera.md).
+print_info "Setting default apps for web pages, text files and images (where none is chosen yet)..."
+set_default_app "chromium.desktop" x-scheme-handler/http x-scheme-handler/https text/html application/xhtml+xml
 set_default_app "org.xfce.mousepad.desktop" text/plain
 mapfile -t RISTRETTO_MIMES < <(sed -n 's/^MimeType=//p' /usr/share/applications/org.xfce.ristretto.desktop 2>/dev/null | tr ';' '\n' | grep -v '^$')
 set_default_app "org.xfce.ristretto.desktop" "${RISTRETTO_MIMES[@]}"

@@ -516,10 +516,11 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   terminal works without escape code artifacts
 
 ### Browser and Core Apps
-- firefox-esr — Mozilla Firefox (default browser)
-- chromium — installed alongside Firefox because it is the browser the
-  FaceTime HD camera works with in Microsoft Teams (`teams.microsoft.com`,
-  see [Microsoft Teams](#microsoft-teams) above)
+- chromium — the default browser, because it is the browser the FaceTime HD
+  camera works with in Microsoft Teams (`teams.microsoft.com`, see
+  [Microsoft Teams](#microsoft-teams) above). It becomes the default only if
+  you haven't chosen one yet.
+- firefox-esr — Mozilla Firefox, still installed
 - galculator — a light calculator (Debian's XFCE install has none)
 - cups — printing system, works with most USB and network printers
 
