@@ -306,8 +306,12 @@ you have rebooted into the desktop:
 
 You will be prompted to choose a mode:
 
-- **Classic** — desktop icons visible, Plank shows open apps only
-- **Dock** — clean empty desktop, all apps pinned in Plank
+- **Classic** — desktop icons visible (the shortcuts the setup script made),
+  Plank shows open apps only
+- **Dock** — clean empty desktop, everyday apps pinned in Plank, laid out like
+  the Mac's default Dock: Files, App Finder, Chromium, Text Editor, Writer,
+  Calc, Impress, Images, VLC, Calculator, Settings and the Trash. Developer and
+  system tools (Terminal, VS Code, Task Manager) stay in the App Finder
 - **Revert** — removes all themes and restores vanilla XFCE
 
 Both the light and dark variants of WhiteSur are installed, and dark is
@@ -326,6 +330,18 @@ different mode or choose Revert. Re-running replaces only the desktop
 launchers and dock items the script placed itself; anything you pinned to the
 dock or put on the Desktop by hand stays. Re-running does reset the Plank
 dock settings and the solid wallpaper colour to the script's defaults.
+
+The dock's icons are locked, so an icon dragged off by accident stays put. To
+pin or remove one on purpose, turn the lock off in Plank's Preferences (hold
+Ctrl and right-click the dock), make the change, and turn it back on. The same
+switch from a terminal:
+
+    gsettings set net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/ lock-items false
+
+(`true` locks it again).
+
+On a Mac the bar at the bottom is the Dock and the one at the top the menu
+bar. Here the Dock is drawn by Plank, and the top bar is the XFCE panel.
 
 ### Default apps
 
@@ -501,10 +517,11 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   terminal works without escape code artifacts
 
 ### Browser and Core Apps
-- firefox-esr — Mozilla Firefox (default browser)
-- chromium — installed alongside Firefox because it is the browser the
-  FaceTime HD camera works with in Microsoft Teams (`teams.microsoft.com`,
-  see [Microsoft Teams](#microsoft-teams) above)
+- chromium — the default browser, because it is the browser the FaceTime HD
+  camera works with in Microsoft Teams (`teams.microsoft.com`, see
+  [Microsoft Teams](#microsoft-teams) above). It becomes the default only if
+  you haven't chosen one yet.
+- firefox-esr — Mozilla Firefox, still installed
 - galculator — a light calculator (Debian's XFCE install has none)
 - cups — printing system, works with most USB and network printers
 
@@ -739,14 +756,15 @@ alone.
 
 ### Desktop Shortcuts
 Shortcuts for the everyday apps are placed on your Desktop so you can
-find everything without memorizing commands: Firefox, Chromium, Files,
-Terminal, Text Editor, VS Code, Writer, Calc, Impress, VLC, Images,
-Screenshot, Calculator, Task Manager, Bluetooth, System Settings and System
-Info. Everything else is in the app menu. Re-running the script updates these
-shortcuts and removes ones older versions placed (such as htop and the image
-editor), but never touches a shortcut you made or edited yourself. First time you click a
-shortcut XFCE will show "Untrusted application launcher" — click Launch
-to confirm. It will not ask again.
+find everything without memorizing commands: Files, App Finder, Chromium,
+Text Editor, Writer, Calc, Impress, Images, VLC, Calculator and System
+Settings, the same apps the Dock holds (see themes.sh). Developer and system
+tools (Terminal, VS Code, Task Manager, Bluetooth, System Info) are in the App
+Finder. Re-running the script updates these shortcuts and removes ones older
+versions placed (such as Firefox, Terminal and htop), but never touches a
+shortcut you made or edited yourself. The shortcuts are marked trusted, so
+XFCE shouldn't ask "Untrusted application launcher"; if it does, click Launch
+and it won't ask again.
 
 ### Getting Started Guide
 A plain text file called GETTING STARTED.txt is placed on your Desktop, and

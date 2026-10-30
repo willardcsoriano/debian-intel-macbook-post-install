@@ -222,6 +222,10 @@ SHORTCUT
     [ -f "$file" ] && verb="updated"
     printf '%s\n' "$content" > "$file"
     chmod +x "$file"
+    # Trusted, so XFCE doesn't ask "Untrusted application launcher" on the
+    # first click: the checksum key for XFCE 4.14+, the flag for 4.16+.
+    gio set "$file" "metadata::xfce-exe-checksum" "$(sha256sum "$file" | awk '{print $1}')" 2>/dev/null || true
+    gio set "$file" "metadata::trusted" true 2>/dev/null || true
     print_ok "$name shortcut $verb on Desktop"
 }
 
@@ -2312,24 +2316,19 @@ echo -e "  ${CYAN}Creating shortcuts on your Desktop so you can find everything 
 DESKTOP_DIR="$ACTUAL_HOME/Desktop"
 mkdir -p "$DESKTOP_DIR"
 
-create_shortcut "Firefox" "firefox-esr" "firefox-esr"
-create_shortcut "Chromium" "chromium" "chromium"
+# The everyday apps, the same ones themes.sh pins to the Dock. Developer and
+# system tools (Terminal, VS Code, Task Manager, ...) are in the App Finder.
 create_shortcut "Files" "thunar" "file-manager"
-create_shortcut "Terminal" "xfce4-terminal" "utilities-terminal"
+create_shortcut "App Finder" "xfce4-appfinder" "org.xfce.appfinder"
+create_shortcut "Chromium" "chromium" "chromium"
 create_shortcut "Text Editor" "mousepad" "org.xfce.mousepad"
-create_shortcut "VS Code" "code" "code"
 create_shortcut "LibreOffice Writer" "libreoffice --writer" "libreoffice-writer"
 create_shortcut "LibreOffice Calc" "libreoffice --calc" "libreoffice-calc"
 create_shortcut "LibreOffice Impress" "libreoffice --impress" "libreoffice-impress"
-create_shortcut "VLC" "vlc" "vlc"
 create_shortcut "Images" "ristretto" "org.xfce.ristretto"
-create_shortcut "Screenshot" "flameshot gui" "flameshot"
+create_shortcut "VLC" "vlc" "vlc"
 create_shortcut "Calculator" "galculator" "accessories-calculator"
-create_shortcut "Task Manager" "xfce4-taskmanager" "utilities-system-monitor"
-create_shortcut "Bluetooth" "blueman-manager" "bluetooth"
 create_shortcut "System Settings" "xfce4-settings-manager" "preferences-system"
-# --hold keeps the window open after fastfetch exits so its output stays readable.
-create_shortcut "System Info" "xfce4-terminal --hold -x fastfetch" "computer"
 
 # Shortcuts earlier versions created. Still in the app menu; no longer on the
 # Desktop. Removed only while they are exactly what the script wrote. (Renamed
@@ -2338,11 +2337,22 @@ retire_shortcut "Simple Scan" "simple-scan"
 retire_shortcut "Cheese" "cheese"
 retire_shortcut "htop" "gnome-terminal -- htop"
 retire_shortcut "Image Editor" "mtpaint"
+retire_shortcut "Firefox" "firefox-esr"
+retire_shortcut "Terminal" "xfce4-terminal"
+retire_shortcut "VS Code" "code"
+retire_shortcut "Screenshot" "flameshot gui"
+retire_shortcut "Task Manager" "xfce4-taskmanager"
+retire_shortcut "Bluetooth" "blueman-manager"
+retire_shortcut "System Info" "xfce4-terminal --hold -x fastfetch"
+retire_shortcut "System Info" "gnome-terminal -- fastfetch"
 
 # Default apps: plain text opened in LibreOffice Writer and images in
 # ImageMagick's bare viewer. Point them at the light XFCE apps, for every MIME
 # type each one declares it handles -- unless the user already chose a default.
-print_info "Setting default apps for text files and images (where none is chosen yet)..."
+# Web pages open in Chromium: the MacBook camera works in Microsoft Teams there,
+# not in Firefox (docs/teams-for-linux-camera.md).
+print_info "Setting default apps for web pages, text files and images (where none is chosen yet)..."
+set_default_app "chromium.desktop" x-scheme-handler/http x-scheme-handler/https text/html application/xhtml+xml
 set_default_app "org.xfce.mousepad.desktop" text/plain
 mapfile -t RISTRETTO_MIMES < <(sed -n 's/^MimeType=//p' /usr/share/applications/org.xfce.ristretto.desktop 2>/dev/null | tr ';' '\n' | grep -v '^$')
 set_default_app "org.xfce.ristretto.desktop" "${RISTRETTO_MIMES[@]}"
