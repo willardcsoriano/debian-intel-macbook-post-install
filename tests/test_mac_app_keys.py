@@ -6,6 +6,7 @@ a display, so it is checked by hand, not here.
     python3 -m unittest discover -s tests
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -224,6 +225,34 @@ class Installed(unittest.TestCase):
 
     def test_keyds_mapper_is_no_longer_fetched(self):
         self.assertNotIn("raw.githubusercontent.com/rvaiya", setup_extract.setup_text())
+
+
+class OldMapperLeftovers(unittest.TestCase):
+    """The block that removes keyd-application-mapper's log and lock, run
+    for real against a temporary home."""
+
+    BLOCK = re.compile(r'^if \[ ! -e "\$KAM_BIN" \]; then\n.*?^fi$', re.M | re.S)
+
+    def run_block(self, mapper_installed):
+        blocks = self.BLOCK.findall(setup_extract.setup_text())
+        self.assertEqual(len(blocks), 1)
+        home = tempfile.mkdtemp()
+        keyd = os.path.join(home, ".config/keyd")
+        os.makedirs(keyd)
+        for name in ("app.log", "app.lock", "app.conf"):
+            open(os.path.join(keyd, name), "w").close()
+        kam_bin = os.path.join(home, "keyd-application-mapper")
+        if mapper_installed:
+            open(kam_bin, "w").close()
+        subprocess.run(["bash", "-c", f'ACTUAL_HOME="$1" KAM_BIN="$2"\n{blocks[0]}', "_", home, kam_bin],
+                       check=True, timeout=30)
+        return sorted(os.listdir(keyd))
+
+    def test_removed_once_the_mapper_is_gone(self):
+        self.assertEqual(self.run_block(mapper_installed=False), ["app.conf"])
+
+    def test_kept_while_a_mapper_is_still_installed(self):
+        self.assertEqual(self.run_block(mapper_installed=True), ["app.conf", "app.lock", "app.log"])
 
 
 if __name__ == "__main__":

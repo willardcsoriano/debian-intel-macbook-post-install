@@ -1623,6 +1623,11 @@ KAM_AUTOSTART="$ACTUAL_HOME/.config/autostart/keyd-application-mapper.desktop"
 if grep -q "(debian-intel-macbook-post-install)" "$KAM_AUTOSTART" 2>/dev/null; then
     rm -f "$KAM_AUTOSTART"
 fi
+# Its log and lock outlive it when an earlier version removed the script
+# without them; nothing else uses these two files.
+if [ ! -e "$KAM_BIN" ]; then
+    rm -f "$ACTUAL_HOME/.config/keyd/app.lock" "$ACTUAL_HOME/.config/keyd/app.log"
+fi
 
 # The mapper talks to keyd over /var/run/keyd.socket, which belongs to the keyd
 # group. That group can remap the keyboard, so treat it like sudo -- this user

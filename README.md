@@ -581,7 +581,7 @@ work. This script fixes all of it.
   on a busy desktop it fell minutes behind (the terminal got the wrong keys)
   while using a whole CPU core. mac-app-keys reacts only to the window
   manager's "active window changed" notice, so it is idle the rest of the
-  time. Re-running the script removes the old mapper.
+  time. Re-running the script removes the old mapper and its leftover log.
   It talks to keyd through the `keyd` group's socket, so your user is added to
   that group. Treat that group like sudo; you already are a sudoer.
 - python3-xlib — lets the mapper see which window is focused
