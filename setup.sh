@@ -2338,6 +2338,23 @@ else
     print_ok "The terminal is listed as Terminal in the menu and App Finder"
 fi
 
+# An App Finder left running (F4 keeps one in the background) still shows the
+# launchers it read when it started, so the fixes above would not appear until
+# the next login. Ask it to quit; the next F4 starts a fresh one. Its exit
+# status is 1 whether or not it quit (4.20), so check the process instead.
+if pgrep -u "$USER" -x xfce4-appfinder > /dev/null; then
+    xfce4-appfinder --quit >>"$LOG_FILE" 2>&1 || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -u "$USER" -x xfce4-appfinder > /dev/null || break
+        sleep 0.2
+    done
+    if pgrep -u "$USER" -x xfce4-appfinder > /dev/null; then
+        print_warning "App Finder is still running; it shows the updated launchers after your next login"
+    else
+        print_ok "App Finder reloaded (the next F4 shows the updated launchers)"
+    fi
+fi
+
 # ─────────────────────────────────────────────
 # DESKTOP SHORTCUTS
 # ─────────────────────────────────────────────

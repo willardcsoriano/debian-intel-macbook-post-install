@@ -257,5 +257,52 @@ class TerminalLauncher(unittest.TestCase):
             self.assertIn("Name=Terminal", self.run_function(f.read()).splitlines())
 
 
+class AppFinderReload(unittest.TestCase):
+    """The block that asks a running App Finder to quit, run against stubs:
+    pgrep reports a running App Finder until `xfce4-appfinder --quit` has
+    stopped it (or never, for one that ignores the request), and the stub
+    App Finder exits 1 either way, as 4.20 does."""
+
+    def run_block(self, running, quits=True):
+        block = re.search(r'^if pgrep -u "\$USER" -x xfce4-appfinder > /dev/null; then\n.*?^fi$',
+                          setup_extract.setup_text(), re.S | re.M).group(0)
+        bin_dir = tempfile.mkdtemp()
+        calls, alive = os.path.join(bin_dir, "calls"), os.path.join(bin_dir, "alive")
+        if running:
+            open(alive, "w").close()
+        stubs = {
+            "pgrep": f'echo "pgrep $*" >> "{calls}"\n[ -e "{alive}" ]',
+            "xfce4-appfinder": f'echo "xfce4-appfinder $*" >> "{calls}"\n'
+                               + (f'rm -f "{alive}"\n' if quits else "") + "exit 1",
+            "sleep": "exit 0",
+        }
+        for name, body in stubs.items():
+            path = os.path.join(bin_dir, name)
+            with open(path, "w") as f:
+                f.write("#!/bin/sh\n" + body + "\n")
+            os.chmod(path, 0o755)
+        script = ('print_ok() { echo "ok: $1"; }\nprint_warning() { echo "warn: $1"; }\n'
+                  "LOG_FILE=/dev/null\n" + block)
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True,
+                             env=dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"])).stdout
+        with open(calls) as f:
+            return f.read().splitlines(), out
+
+    def test_a_running_app_finder_is_asked_to_quit(self):
+        calls, out = self.run_block(running=True)
+        self.assertIn("xfce4-appfinder --quit", calls)
+        self.assertEqual(out, "ok: App Finder reloaded (the next F4 shows the updated launchers)\n")
+
+    def test_one_that_stays_running_is_reported_not_claimed(self):
+        calls, out = self.run_block(running=True, quits=False)
+        self.assertIn("xfce4-appfinder --quit", calls)
+        self.assertTrue(out.startswith("warn: App Finder is still running"), out)
+
+    def test_nothing_happens_when_none_is_running(self):
+        calls, out = self.run_block(running=False)
+        self.assertEqual([c for c in calls if c.startswith("xfce4-appfinder")], [])
+        self.assertEqual(out, "")
+
+
 if __name__ == "__main__":
     unittest.main()
