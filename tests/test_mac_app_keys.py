@@ -1,12 +1,14 @@
 """mac-app-keys, which gives keyd the per-app bindings in app.conf for the app
 in front: reading app.conf, choosing an app's bindings, calling keyd, the
-single-instance lock, and the app.conf setup.sh writes. The X event loop needs
-a display, so it is checked by hand, not here.
+single-instance lock, the app.conf setup.sh writes, the user service that
+runs it and the old mapper's leftovers. The X event loop and the service's
+restart need a display and a live session, so they are checked by hand.
 
     python3 -m unittest discover -s tests
 """
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -217,11 +219,38 @@ class CommandLine(unittest.TestCase):
             self.assertEqual(self.run_cli(*args).returncode, 2)
 
 
+def service_unit(exec_start="/usr/local/bin/mac-app-keys"):
+    body = setup_extract.heredoc(r'^cat > "\$APP_KEYS_UNIT" << APP_KEYS_SERVICE$', "APP_KEYS_SERVICE")
+    return setup_extract.render_unquoted(body, {"MAC_APP_KEYS": exec_start})
+
+
 class Installed(unittest.TestCase):
-    def test_started_at_login_from_the_installed_path(self):
+    def test_login_entry_starts_the_service(self):
         body = setup_extract.heredoc(r'^cat > ".*/autostart/mac-app-keys\.desktop" << APP_KEYS_AUTOSTART$',
                                      "APP_KEYS_AUTOSTART")
-        self.assertIn("Exec=$MAC_APP_KEYS\n", body)
+        exec_lines = [line for line in body.splitlines() if line.startswith("Exec=")]
+        self.assertEqual(exec_lines, ["Exec=sh -c 'systemctl --user reset-failed mac-app-keys.service; "
+                                      "systemctl --user restart mac-app-keys.service'"])
+
+    def test_service_runs_the_installed_path_and_restarts_a_crash(self):
+        unit = service_unit()
+        self.assertIn("ExecStart=/usr/local/bin/mac-app-keys\n", unit)
+        self.assertIn("Restart=on-failure\n", unit)
+        # A clean exit (SIGTERM at log-out, "already running") must not restart
+        self.assertNotIn("Restart=always", unit)
+        # Bounded, so a log-out's dead display doesn't retry forever
+        self.assertIn("StartLimitBurst=5\n", unit)
+
+    @unittest.skipUnless(shutil.which("systemd-analyze"), "systemd-analyze not installed")
+    def test_service_unit_is_valid(self):
+        directory = tempfile.mkdtemp()
+        helper = stub(directory, "mac-app-keys", "exit 0")
+        path = os.path.join(directory, "mac-app-keys.service")
+        with open(path, "w") as f:
+            f.write(service_unit(helper))
+        result = subprocess.run(["systemd-analyze", "--user", "verify", path],
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual((result.returncode, result.stderr), (0, ""))
 
     def test_keyds_mapper_is_no_longer_fetched(self):
         self.assertNotIn("raw.githubusercontent.com/rvaiya", setup_extract.setup_text())

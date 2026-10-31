@@ -1790,20 +1790,42 @@ terminal-window/prev-tab|<Primary><Shift>ISO_Left_Tab
 TERMINAL_ACCELS
 print_ok "Terminal tabs on Cmd+Tab / Cmd+Shift+Tab (once every terminal window has been closed)"
 
+# mac-app-keys runs as a systemd user service, so a crash is restarted rather
+# than leaving Cmd+C sending Ctrl+C in the terminal until the next login. XFCE
+# 4.20 never starts graphical-session.target, so the login entry starts the
+# service instead of the target pulling it in. At log-out the X connection
+# closes and the helper exits with an error; the start limit stops the retries
+# against the dead display, and the next login clears it with reset-failed.
+APP_KEYS_UNIT="$ACTUAL_HOME/.config/systemd/user/mac-app-keys.service"
+mkdir -p "$(dirname "$APP_KEYS_UNIT")"
+cat > "$APP_KEYS_UNIT" << APP_KEYS_SERVICE
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+[Unit]
+Description=Per-app Mac keys
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+ExecStart=$MAC_APP_KEYS
+Restart=on-failure
+RestartSec=2
+APP_KEYS_SERVICE
+
 mkdir -p "$ACTUAL_HOME/.config/autostart"
 cat > "$ACTUAL_HOME/.config/autostart/mac-app-keys.desktop" << APP_KEYS_AUTOSTART
 [Desktop Entry]
 Type=Application
 Name=Per-app Mac keys
 Comment=Switches Mac keys for the app in front (debian-intel-macbook-post-install)
-Exec=$MAC_APP_KEYS
+Exec=sh -c 'systemctl --user reset-failed mac-app-keys.service; systemctl --user restart mac-app-keys.service'
 NoDisplay=true
 X-GNOME-Autostart-enabled=true
 APP_KEYS_AUTOSTART
 
 # Restart it now, so this run's helper and app.conf are what's in use and the
-# keys keyd forgot when it restarted above come back. The pid file is checked
-# against the process's command line before it is signalled.
+# keys keyd forgot when it restarted above come back. A copy started by an
+# earlier version's login entry runs outside the service, so it is stopped
+# through its pid file, checked against the process's command line first.
 APP_KEYS_PIDFILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mac-app-keys.pid"
 APP_KEYS_PID=$(cat "$APP_KEYS_PIDFILE" 2>/dev/null || true)
 if [[ "$APP_KEYS_PID" =~ ^[0-9]+$ ]] \
@@ -1814,9 +1836,13 @@ if [[ "$APP_KEYS_PID" =~ ^[0-9]+$ ]] \
         sleep 0.2
     done
 fi
-if [ -n "${DISPLAY:-}" ]; then
-    setsid -f "$MAC_APP_KEYS" > /dev/null 2>&1 < /dev/null
-    print_ok "Per-app keys running (and started at each login)"
+if [ -n "${DISPLAY:-}" ] && systemctl --user daemon-reload 2>>"$LOG_FILE"; then
+    systemctl --user reset-failed mac-app-keys.service 2>/dev/null || true
+    if systemctl --user restart mac-app-keys.service >>"$LOG_FILE" 2>&1; then
+        print_ok "Per-app keys running (and started at each login)"
+    else
+        print_warning "Per-app keys didn't start -- see: systemctl --user status mac-app-keys"
+    fi
 else
     print_info "Per-app keys start at your next login"
 fi
