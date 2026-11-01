@@ -21,7 +21,7 @@ Common	Command-W	Close the window (tab)	native	-cmd.w +xfce4-terminal:cmd.w	Ctrl
 Common	Option-Command-W	Close all windows of the app	partial	+thunar:cmd+option.w	Files only (its Close All Windows); other apps have no such action, so it closes the tab
 Common	Option-Command-Esc	Force quit	mapped	+cmd+option.escape	click the window to close (xkill-style)
 Common	Command-Space	Spotlight	mapped	+cmd.space	the app finder
-Common	Option-Command-Space	Spotlight search in a Finder window	no-equivalent		the app finder doesn't search files; Cmd+F searches in Files
+Common	Option-Command-Space	Spotlight search in a Finder window	partial	+cmd+option.space	a new Files window at home; Cmd+F searches in it (the app finder doesn't search files)
 Common	Control-Command-Space or Fn-E	Character Viewer (emoji)	mapped	+control+cmd.space +globe.e	mac-shortcut emoji: type to search, Enter types it and copies it
 Common	Control-Command-F	Full screen	mapped	+control+cmd.f	XFCE's full screen (Alt+F11)
 Common	Space bar	Quick Look	no-equivalent		Files has no previewer
