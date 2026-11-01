@@ -4,6 +4,11 @@
 # Tested on MacBook Air 7,2 (2015) — should work on most Intel MacBooks
 # https://github.com/willardcsoriano/debian-intel-macbook-post-install
 
+# SC2024 ("sudo doesn't affect redirects") is the intended behaviour here:
+# every `sudo cmd >>"$LOG_FILE"` appends to the user's own log (under
+# XDG_STATE_HOME, or /tmp), so the redirect is meant to run as the user.
+# shellcheck disable=SC2024
+
 set -uo pipefail
 
 # ─────────────────────────────────────────────
@@ -300,7 +305,7 @@ print_ok "sudo access confirmed"
 # Keep sudo alive for the full run (webcam build can take several minutes)
 ( while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &>/dev/null &
 SUDO_KEEPALIVE_PID=$!
-trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null || true" EXIT INT TERM
+trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true' EXIT INT TERM
 
 # Use whichever HTTP client is on the system; minimal Debian may lack wget
 if command -v wget &>/dev/null; then
@@ -324,7 +329,7 @@ fi
 
 if ! grep -q "trixie\|13" /etc/os-release; then
     print_warning "This script was tested on Debian 13 (Trixie). Your system may differ."
-    read -p "  Continue anyway? [y/N] " confirm
+    read -r -p "  Continue anyway? [y/N] " confirm
     [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
 fi
 print_ok "Debian 13 (Trixie) confirmed"
@@ -334,7 +339,7 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
     print_warning "No active dbus session detected."
     print_warning "XFCE settings (shortcuts, power, tiling) will NOT persist."
     print_warning "For best results, run this script from inside an XFCE session."
-    read -p "  Continue anyway? [y/N] " confirm
+    read -r -p "  Continue anyway? [y/N] " confirm
     [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
 else
     print_ok "dbus user session detected"
@@ -1972,7 +1977,7 @@ else
 fi
 
 # FaceTime HD kernel module — idempotent DKMS build
-if find /lib/modules/$(uname -r) -name "facetimehd.ko*" 2>/dev/null | grep -q .; then
+if find "/lib/modules/$(uname -r)" -name "facetimehd.ko*" 2>/dev/null | grep -q .; then
     print_skip "FaceTime HD webcam driver"
     SKIPPED+=("FaceTime HD webcam driver")
 else
@@ -2751,7 +2756,7 @@ else
     echo -e "  new kernel — the Broadcom/webcam DKMS drivers rebuild for it automatically,"
     echo -e "  but you must reboot to use it.${NC}\n"
 
-    read -p "$(echo -e ${BOLD}"  Run a full system upgrade now? [y/N] "${NC})" do_upgrade
+    read -r -p "$(echo -e "${BOLD}  Run a full system upgrade now? [y/N] ${NC}")" do_upgrade
     if [[ "$do_upgrade" =~ ^[Yy]$ ]]; then
         RUNNING_KERNEL=$(uname -r)
         print_info "Upgrading all packages (this can take a while)..."
@@ -2766,7 +2771,7 @@ else
         fi
         # A newer kernel only becomes active after a reboot; flag it so the reboot
         # prompt fires and the DKMS drivers run on the kernel you actually boot into.
-        NEWEST_KERNEL=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's|.*/vmlinuz-||' | sort -V | tail -1)
+        NEWEST_KERNEL=$(find /boot -maxdepth 1 -name 'vmlinuz-*' -printf '%f\n' 2>/dev/null | sed 's/^vmlinuz-//' | sort -V | tail -1)
         if [ -n "$NEWEST_KERNEL" ] && [ "$NEWEST_KERNEL" != "$RUNNING_KERNEL" ]; then
             REBOOT_REQUIRED=true
             print_warning "New kernel installed ($NEWEST_KERNEL) — reboot to activate it,"
@@ -2853,7 +2858,7 @@ echo -e "  ${CYAN}If anything looks wrong, undo this entire run with: sudo times
 echo -e "${BOLD}══════════════════════════════════════════${NC}"
 if [ "$REBOOT_REQUIRED" = true ]; then
     echo -e "\n${YELLOW}  A reboot is required to apply all changes.${NC}\n"
-    read -p "$(echo -e ${BOLD}"  Reboot now? [Y/n] "${NC})" reboot_confirm
+    read -r -p "$(echo -e "${BOLD}  Reboot now? [Y/n] ${NC}")" reboot_confirm
     if [[ "$reboot_confirm" =~ ^[Nn]$ ]]; then
         echo -e "\n${YELLOW}  Please reboot before using the desktop.${NC}\n"
     else
