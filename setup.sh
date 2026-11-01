@@ -1091,6 +1091,8 @@ i = C-S-i
 s = C-A-s
 # New terminal window (macOS uses Cmd+Option+T for a toolbar toggle these apps lack)
 t = M-A-t
+# A new Files window, as Finder's search window opens; Cmd+F searches in it
+space = M-A-f
 # Show or hide the Dock / the Accessibility settings (Fn+F5)
 d = M-A-d
 f5 = M-A-5
@@ -1375,6 +1377,7 @@ done << SHORTCUTS
 <Super><Alt>8|xcalib -invert -alter
 <Super><Alt>space|xfce4-appfinder
 <Super><Alt>t|exo-open --launch TerminalEmulator
+<Super><Alt>f|thunar --window $ACTUAL_HOME
 SHORTCUTS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
