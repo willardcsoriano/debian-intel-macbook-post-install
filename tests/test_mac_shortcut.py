@@ -106,9 +106,8 @@ class FullRun(unittest.TestCase):
         with open(os.path.join(self.dir, name), "w") as f:
             f.write(text)
 
-    def run_script(self, *args, **extra_env):
-        env = dict(os.environ, PATH=self.dir + ":/usr/bin:/bin", XDG_STATE_HOME=os.path.join(self.dir, "state"),
-                   **extra_env)
+    def run_script(self, *args):
+        env = dict(os.environ, PATH=self.dir + ":/usr/bin:/bin", XDG_STATE_HOME=os.path.join(self.dir, "state"))
         result = subprocess.run([sys.executable, self.script, *args], env=env, capture_output=True,
                                 text=True, stdin=subprocess.DEVNULL, timeout=30)
         calls = []
