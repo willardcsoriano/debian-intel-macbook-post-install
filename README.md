@@ -658,7 +658,7 @@ the config setup.sh writes, so a row can't claim a key that isn't bound.
 | Option+Brightness / Volume / Keyboard light / F3 | Open Display / Sound / Keyboard / window manager settings |
 | Option+Shift+Brightness / Volume / Keyboard light | Smaller steps |
 | Ctrl+Cmd+Option+8 | Invert colors |
-| Ctrl+Power / Ctrl+Shift+Power | Restart-sleep-shut-down dialog / display sleep (not yet confirmed on hardware) |
+| Power (Ctrl+Power too) | Log-out dialog: restart, suspend, shut down. Ctrl+Shift+Power has no display-sleep equivalent: the remapper never sees the power key |
 | Ctrl+A / E / F / B / N / P / H / D / K / O | macOS text-field keys: line start / end, move, delete, cut to end of line, open a line |
 | Ctrl+Cmd+F | Full screen |
 | Cmd+Option+Esc | Force quit (click a window) |

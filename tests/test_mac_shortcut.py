@@ -1,9 +1,11 @@
-"""mac-shortcut (emoji picker, Dock toggle, small volume steps), run against
+"""mac-shortcut (emoji picker, Dock toggle, small volume steps, colour
+inversion), run against
 stub tools, and the hand-off from keyd to XFCE: every Super combo the keyd
 config sends must be a shortcut XFCE has.
 
     python3 -m unittest discover -s tests
 """
+import json
 import os
 import re
 import subprocess
@@ -143,9 +145,111 @@ class FullRun(unittest.TestCase):
         self.assertFalse([c for c in calls if c.startswith(("xdotool", "xclip"))])
 
     def test_bad_usage(self):
-        for args in ((), ("volume",), ("volume", "loud"), ("dance",)):
+        for args in ((), ("volume",), ("volume", "loud"), ("dance",), ("invert", "now")):
             result, calls = self.run_script(*args)
             self.assertEqual((result.returncode, calls), (2, []))
+
+
+class Invert(unittest.TestCase):
+    def test_reverses_the_ramp(self):
+        self.assertEqual(MS.inverted([0, 100, 65535]), [65535, 100, 0])
+
+    def test_twice_gives_the_ramp_back(self):
+        # a calibrated (non-linear) ramp survives the round trip untouched
+        ramp = [0, 900, 5000, 30000, 65535]
+        self.assertEqual(MS.inverted(MS.inverted(ramp)), ramp)
+
+    def test_empty(self):
+        self.assertEqual(MS.inverted([]), [])
+
+
+# A stand-in for python-xlib's RandR calls: CRTCs come from the JSON file in
+# $FAKE_RANDR, and each set_crtc_gamma and sync is appended to $FAKE_RANDR.log.
+FAKE_XLIB = {
+    "Xlib/__init__.py": "",
+    "Xlib/ext/__init__.py": "",
+    "Xlib/display.py": """
+import os
+class _Screen:
+    root = object()
+class Display:
+    def screen(self):
+        return _Screen()
+    def sync(self):
+        with open(os.environ["FAKE_RANDR"] + ".log", "a") as f:
+            f.write("sync\\n")
+""",
+    "Xlib/ext/randr.py": """
+import json, os, types
+def _crtcs():
+    with open(os.environ["FAKE_RANDR"]) as f:
+        return {c["id"]: c for c in json.load(f)}
+def get_screen_resources(root):
+    return types.SimpleNamespace(crtcs=list(_crtcs()), config_timestamp=7)
+def get_crtc_info(root, crtc, timestamp):
+    assert timestamp == 7
+    return types.SimpleNamespace(outputs=_crtcs()[crtc]["outputs"])
+def get_crtc_gamma(root, crtc):
+    r = _crtcs()[crtc]["ramp"]
+    return types.SimpleNamespace(red=list(r), green=list(r), blue=list(r))
+def set_crtc_gamma(root, crtc, size, red, green, blue):
+    with open(os.environ["FAKE_RANDR"] + ".log", "a") as f:
+        f.write(json.dumps(["set", crtc, size, red, green, blue]) + "\\n")
+""",
+}
+
+
+class InvertRun(unittest.TestCase):
+    """mac-shortcut invert as XFCE runs it, against the fake RandR above."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        for path, text in FAKE_XLIB.items():
+            full = os.path.join(self.dir, "lib", path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w") as f:
+                f.write(text)
+        self.script = os.path.join(self.dir, "mac-shortcut")
+        with open(self.script, "w") as f:
+            f.write(SOURCE)
+        self.state = os.path.join(self.dir, "crtcs.json")
+
+    def run_invert(self, crtcs):
+        with open(self.state, "w") as f:
+            json.dump(crtcs, f)
+        env = dict(os.environ, PYTHONPATH=os.path.join(self.dir, "lib"), FAKE_RANDR=self.state)
+        result = subprocess.run([sys.executable, self.script, "invert"], env=env, capture_output=True,
+                                text=True, stdin=subprocess.DEVNULL, timeout=30)
+        log = []
+        if os.path.exists(self.state + ".log"):
+            with open(self.state + ".log") as f:
+                log = [line if line == "sync" else json.loads(line) for line in f.read().splitlines()]
+        return result, log
+
+    def test_inverts_only_lit_displays(self):
+        result, log = self.run_invert([
+            {"id": 62, "outputs": [65], "ramp": [0, 16399, 65535]},
+            {"id": 63, "outputs": [], "ramp": [0, 16384, 65472]},
+        ])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(log, [["set", 62, 3, [65535, 16399, 0], [65535, 16399, 0], [65535, 16399, 0]], "sync"])
+
+    def test_every_lit_display(self):
+        result, log = self.run_invert([
+            {"id": 62, "outputs": [65], "ramp": [0, 65535]},
+            {"id": 63, "outputs": [66], "ramp": [10, 60000]},
+        ])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([entry[1] for entry in log if entry != "sync"], [62, 63])
+
+    def test_nothing_to_invert_is_a_failure(self):
+        # no lit display, or one whose driver exposes no ramp: say so, exit 1
+        for crtcs in ([], [{"id": 63, "outputs": [], "ramp": [0, 1]}],
+                      [{"id": 62, "outputs": [65], "ramp": []}]):
+            result, log = self.run_invert(crtcs)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("no display has a gamma ramp", result.stderr)
+            self.assertNotIn("set", [entry[0] for entry in log if entry != "sync"])
 
 
 # XFCE's own default shortcuts that the keyd config relies on
