@@ -102,6 +102,42 @@ check_active() {
     fi
 }
 
+# Make a root-owned file hold exactly CONTENT. "Already done" only when it
+# already does: a file someone edited, truncated or half-wrote is rewritten,
+# not reported as configured. Returns 0 = written now, 1 = already matched,
+# 2 = failed, so a caller reloads or flags a reboot only on a real change.
+ensure_file() {
+    local path=$1 content=$2 label=$3
+    if [ -f "$path" ] && [ "$(cat "$path")" = "$content" ]; then
+        print_skip "$label"
+        return 1
+    fi
+    if sudo mkdir -p "$(dirname "$path")" \
+        && printf '%s\n' "$content" | sudo tee "$path" > /dev/null; then
+        print_ok "$label"
+        return 0
+    fi
+    print_fail "$label"
+    FAILED+=("$label")
+    return 2
+}
+
+# The VS Code apt source is usable: it names the VS Code repo and its
+# signed-by keyring is a valid key. Checked by meaning, not exact text,
+# because VS Code's own package rewrites this file with its own keyring.
+vscode_source_ok() {
+    local list=$1 keyring
+    grep -q 'packages.microsoft.com/repos/code' "$list" 2>/dev/null || return 1
+    keyring=$(grep -oE 'signed-by=[^] ]+' "$list" | head -n 1 | cut -d= -f2)
+    [ -n "$keyring" ] && gpg --show-keys "$keyring" > /dev/null 2>&1
+}
+
+# s2idle is on GRUB's active default kernel command line (not a comment,
+# not another variable).
+grub_has_s2idle() {
+    grep -qE '^GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\bmem_sleep_default=s2idle\b' "$1" 2>/dev/null
+}
+
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
 # dpkg-query, not dpkg -s: with a foreign architecture enabled (e.g. i386), a
 # package installed for both is "ambiguous" to dpkg -s and looks missing.
@@ -546,26 +582,11 @@ print_ok "Broadcom driver rebuild chain secured"
 # Blacklist conflicting open-source Broadcom modules — b43, bcma, and ssb
 # fight with the proprietary wl driver and win, causing random WiFi drops
 BLACKLIST_FILE="/etc/modprobe.d/broadcom-blacklist.conf"
-if [ ! -f "$BLACKLIST_FILE" ]; then
-    print_info "Blacklisting conflicting Broadcom modules (b43, bcma, ssb)..."
-    sudo tee "$BLACKLIST_FILE" > /dev/null << 'EOF'
-blacklist b43
-blacklist bcma
-blacklist ssb
-EOF
-    print_ok "Conflicting modules blacklisted"
-else
-    print_skip "Broadcom blacklist already configured"
-fi
+ensure_file "$BLACKLIST_FILE" $'blacklist b43\nblacklist bcma\nblacklist ssb' \
+    "Conflicting Broadcom modules blacklisted (b43, bcma, ssb)" || true
 
 # Persist the wl module across reboots — modprobe alone doesn't survive a restart
-if ! grep -q "wl" /etc/modules-load.d/broadcom.conf 2>/dev/null; then
-    print_info "Setting wl module to load automatically on boot..."
-    echo "wl" | sudo tee /etc/modules-load.d/broadcom.conf > /dev/null
-    print_ok "wl module set to load on boot"
-else
-    print_skip "wl boot config already set"
-fi
+ensure_file /etc/modules-load.d/broadcom.conf "wl" "wl module loads on boot" || true
 
 # ─────────────────────────────────────────────
 # SWAP / MEMORY SAFETY NET
@@ -605,18 +626,15 @@ sudo dpkg-reconfigure -f noninteractive unattended-upgrades >>"$LOG_FILE" 2>&1 |
 # Extend to -updates and the VS Code repo (third-party origins are excluded by
 # default, so VS Code would otherwise never auto-update).
 UU_EXTRA="/etc/apt/apt.conf.d/52unattended-upgrades-extra"
-if [ ! -f "$UU_EXTRA" ]; then
-    print_info "Extending unattended-upgrades to cover -updates pocket and VS Code..."
-    sudo tee "$UU_EXTRA" > /dev/null << 'EOF'
+# ${distro_codename} is apt's own variable, written literally (quoted heredoc)
+UU_EXTRA_CONTENT=$(cat << 'EOF'
 Unattended-Upgrade::Origins-Pattern {
     "origin=Debian,codename=${distro_codename}-updates";
     "site=packages.microsoft.com";
 };
 EOF
-    print_ok "unattended-upgrades extended"
-else
-    print_skip "unattended-upgrades extra origins"
-fi
+)
+ensure_file "$UU_EXTRA" "$UU_EXTRA_CONTENT" "unattended-upgrades covers -updates and VS Code" || true
 
 # Installing fwupd doesn't auto-refresh metadata; the timer does
 if systemctl list-unit-files fwupd-refresh.timer &>/dev/null; then
@@ -632,17 +650,9 @@ fi
 # so a package update to apt doesn't just overwrite the change.
 ACPOWER_OVERRIDE_DIR="/etc/systemd/system/apt-daily-upgrade.service.d"
 ACPOWER_OVERRIDE_FILE="$ACPOWER_OVERRIDE_DIR/override.conf"
-if [ ! -f "$ACPOWER_OVERRIDE_FILE" ]; then
-    print_info "Allowing daily security updates to run on battery, not just AC power..."
-    sudo mkdir -p "$ACPOWER_OVERRIDE_DIR"
-    sudo tee "$ACPOWER_OVERRIDE_FILE" > /dev/null << 'EOF'
-[Unit]
-ConditionACPower=
-EOF
+if ensure_file "$ACPOWER_OVERRIDE_FILE" $'[Unit]\nConditionACPower=' \
+    "apt-daily-upgrade.service runs on battery as well as AC power"; then
     sudo systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
-    print_ok "apt-daily-upgrade.service will now run regardless of power source"
-else
-    print_skip "apt-daily-upgrade.service AC power condition already cleared"
 fi
 
 # AppArmor ships enabled on Debian 13; only warn if it has been disabled
@@ -719,7 +729,7 @@ else
 fi
 
 BASHRC="/etc/bash.bashrc"
-if ! grep -q "enable-bracketed-paste" "$BASHRC"; then
+if ! grep -qxF 'bind "set enable-bracketed-paste off"' "$BASHRC"; then
     print_info "Fixing paste behavior in terminal (disabling bracketed paste mode)..."
     echo 'bind "set enable-bracketed-paste off"' | sudo tee -a "$BASHRC" > /dev/null
     print_ok "Terminal paste fixed"
@@ -754,33 +764,38 @@ install_pkgs "VS Code prerequisites" wget gpg apt-transport-https
 VSCODE_KEY="/usr/share/keyrings/packages.microsoft.gpg"
 VSCODE_LIST="/etc/apt/sources.list.d/vscode.list"
 
-if [ ! -f "$VSCODE_KEY" ]; then
+# A key that exists is not enough: a failed download used to leave an empty
+# file here, which every later run then reported as done while apt broke.
+if gpg --show-keys "$VSCODE_KEY" > /dev/null 2>&1; then
+    print_skip "Microsoft GPG key"
+else
     print_info "Adding Microsoft GPG key..."
+    KEY_TMP=$(mktemp)
     if wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
-        | gpg --dearmor 2>>"$LOG_FILE" \
-        | sudo tee "$VSCODE_KEY" > /dev/null; then
+        | gpg --dearmor > "$KEY_TMP" 2>>"$LOG_FILE" \
+        && gpg --show-keys "$KEY_TMP" > /dev/null 2>&1 \
+        && sudo install -m 644 "$KEY_TMP" "$VSCODE_KEY"; then
         print_ok "Microsoft GPG key added"
     else
         print_fail "Microsoft GPG key"
         FAILED+=("Microsoft GPG key")
     fi
-else
-    print_skip "Microsoft GPG key"
+    rm -f "$KEY_TMP"
 fi
 
-if [ ! -f "$VSCODE_LIST" ]; then
+# VS Code's own updater can auto-create vscode.sources pointing to a different keyring,
+# which conflicts with our vscode.list and breaks all apt commands.
+if [ -f "/etc/apt/sources.list.d/vscode.sources" ] && [ -f "$VSCODE_LIST" ]; then
+    sudo rm /etc/apt/sources.list.d/vscode.sources >>"$LOG_FILE" 2>&1
+fi
+if vscode_source_ok "$VSCODE_LIST"; then
+    print_skip "VS Code repository"
+else
     print_info "Adding VS Code apt repository..."
     echo "deb [arch=amd64,arm64,armhf signed-by=$VSCODE_KEY] https://packages.microsoft.com/repos/code stable main" \
         | sudo tee "$VSCODE_LIST" > /dev/null
     sudo apt update -y >>"$LOG_FILE" 2>&1
     print_ok "VS Code repository added"
-else
-    # VS Code's own updater can auto-create vscode.sources pointing to a different keyring,
-    # which conflicts with our vscode.list and breaks all apt commands.
-    if [ -f "/etc/apt/sources.list.d/vscode.sources" ]; then
-        sudo rm /etc/apt/sources.list.d/vscode.sources >>"$LOG_FILE" 2>&1
-    fi
-    print_skip "VS Code repository"
 fi
 
 install_pkg "code" "Visual Studio Code"
@@ -2038,22 +2053,13 @@ else
     fi
 fi
 
-if ! grep -q "facetimehd" /etc/modules-load.d/facetimehd.conf 2>/dev/null; then
-    print_info "Configuring webcam to load automatically on boot..."
-    echo "facetimehd" | sudo tee /etc/modules-load.d/facetimehd.conf > /dev/null
-    print_ok "Webcam will load automatically on every boot"
+if ensure_file /etc/modules-load.d/facetimehd.conf "facetimehd" "Webcam loads automatically on every boot"; then
     REBOOT_REQUIRED=true
-else
-    print_skip "Webcam boot config already set"
 fi
 
-if ! grep -q "options snd-hda-intel" /etc/modprobe.d/alsa-base.conf 2>/dev/null; then
-    print_info "Configuring microphone for MacBook Air hardware..."
-    echo "options snd-hda-intel model=mbp101" | sudo tee /etc/modprobe.d/alsa-base.conf > /dev/null
-    print_ok "Microphone configured"
+if ensure_file /etc/modprobe.d/alsa-base.conf "options snd-hda-intel model=mbp101" \
+    "Microphone configured for MacBook Air hardware"; then
     REBOOT_REQUIRED=true
-else
-    print_skip "Microphone already configured"
 fi
 
 # A reverse-engineered driver is the kind of thing you want to verify works
@@ -2087,7 +2093,7 @@ print_ok "XFCE configured — lid handling delegated to logind"
 # which enters fine but never resumes — the machine is dead on lid-open until a
 # hard power-off. Force s2idle (suspend-to-idle), which resumes reliably on this
 # firmware. See https://github.com/basecamp/omarchy/issues/1840
-if ! grep -q "mem_sleep_default=s2idle" /etc/default/grub; then
+if ! grub_has_s2idle /etc/default/grub; then
     print_info "Forcing s2idle suspend via kernel parameter (deep/S3 won't resume on this hardware)..."
     sudo sed -i 's/^\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 mem_sleep_default=s2idle"/' /etc/default/grub
     sudo update-grub
