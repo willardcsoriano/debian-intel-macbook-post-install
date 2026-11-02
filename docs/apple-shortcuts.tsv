@@ -38,8 +38,8 @@ Power	Power button (press)	Turn on or wake	hardware
 Power	Power button (hold)	Force off	hardware		firmware, works without the OS
 Power	Power button (Touch ID)	Lock	no-equivalent		this MacBook has no Touch ID
 Power	Power button (hold 1.5 s) or Option-Command-Power	Sleep	partial		pressing power asks what to do (XFCE power manager); not a hold-to-sleep
-Power	Control-Shift-Power	Display sleep	unverified	+control+shift.power	sends display sleep; whether keyd sees the power key (or only the system's Power Button device does) is unchecked, and the lock follows after 5 s
-Power	Control-Power	Restart / sleep / shut down dialog	unverified	+control.power	XFCE's log-out dialog; same power-key caveat
+Power	Control-Shift-Power	Display sleep	no-equivalent		the power key opens the log-out dialog whatever is held: keyd 2.5 skips input devices without keyboard keys, so it never sees the power key, and the power manager grabs that key with any modifier held, so XFCE cannot bind it either
+Power	Control-Power	Restart / sleep / shut down dialog	partial		the power key alone already opens XFCE's log-out dialog (restart, suspend, shut down), and so does Control-Power: keyd 2.5 skips input devices without keyboard keys, so it never sees the power key, and the power manager grabs that key with any modifier held, so XFCE cannot bind it either
 Power	Control-Command-Power	Force restart	skipped		no save prompt; one slip loses work
 Power	Control-Option-Command-Power	Quit all apps and shut down	skipped		quitting everything from one chord risks unsaved work in apps that don't ask
 Power	Control-Command-Q	Lock the screen	mapped	+control+cmd.q

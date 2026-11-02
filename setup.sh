@@ -1033,8 +1033,6 @@ right = C-A-right
 # Fn+Control+F2: the menu bar (F10). Fn+Control+F4: the previous window
 f2 = f10
 f4 = A-tab
-# Control+Power: the restart / sleep / shut down dialog
-power = M-A-q
 
 [cmd+shift]
 # Selection to line / document edges
@@ -1067,10 +1065,6 @@ kbdillumdown = command(sh -c 'for d in /sys/class/leds/*kbd_backlight; do val=\$
 kbdillumup = command(sh -c 'for d in /sys/class/leds/*kbd_backlight; do val=\$(cat \$d/brightness); max=\$(cat \$d/max_brightness); echo \$((val + 4 > max ? max : val + 4)) | tee \$d/brightness; done')
 volumedown = M-A-minus
 volumeup = M-A-equal
-
-[control+shift]
-# Control+Shift+Power: display sleep
-power = M-A-z
 
 [control+cmd]
 # Lock screen / full screen
@@ -1411,8 +1405,6 @@ done << SHORTCUTS
 <Super><Alt>d|$MAC_SHORTCUT toggle-dock
 <Super><Alt>minus|$MAC_SHORTCUT volume -1
 <Super><Alt>equal|$MAC_SHORTCUT volume +1
-<Super><Alt>z|xset dpms force off
-<Super><Alt>q|xfce4-session-logout
 <Super><Alt>1|xfce4-display-settings
 <Super><Alt>2|pavucontrol
 <Super><Alt>3|xfce4-keyboard-settings
