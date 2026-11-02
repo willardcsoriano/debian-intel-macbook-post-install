@@ -109,7 +109,7 @@ Finder	Option-Shift-Volume Up or Down	Volume in small steps	mapped	+option+shift
 Finder	Option-Keyboard Brightness Up	Keyboard settings	mapped	+option.kbdillumup +option.kbdillumdown	XFCE's keyboard settings
 Finder	Option-Shift-Keyboard Brightness Up or Down	Keyboard light in small steps	mapped	+option+shift.kbdillumup +option+shift.kbdillumdown	4 of 255 per press
 Finder	Option while double-clicking	Open and close the original window	no-equivalent		Files has no such action
-Finder	Command while double-clicking	Open a folder in a new tab	unverified		Cmd holds Ctrl; whether Files opens a tab on Ctrl+double-click is unchecked
+Finder	Command while double-clicking	Open a folder in a new tab	partial		Files ignores Ctrl on a double-click and opens the folder in place; Cmd+middle-click opens it in a new tab, a plain middle-click in a new window (Thunar 4.20 source)
 Finder	Command while dragging to another volume	Move instead of copy	partial		Cmd holds Ctrl, and Ctrl+drag copies in Files; Shift+drag moves
 Finder	Option while dragging	Copy	skipped		Left Option sends no modifier (an Alt-holding Option opened menus); Ctrl+drag copies
 Finder	Option-Command while dragging	Make an alias	skipped		same reason; Ctrl+Shift+drag links in Files
