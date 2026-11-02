@@ -261,6 +261,9 @@ undoes the whole run, and the reboot question if a reboot is needed.
 
 Re-running is safe. The script checks each step first and skips what is
 already done (the ⊘ lines), so a second run only finishes what was missing.
+"Done" means the result is in place, not just that a file exists: a config
+file the script owns that was edited, emptied or left half-written is put
+back, and a missing or invalid VS Code signing key is fetched again.
 A re-run of the same version of the script doesn't take another safety
 snapshot: the one from its first run still covers everything it changes. To
 skip the snapshot on purpose, run the script with `--no-snapshot`.
