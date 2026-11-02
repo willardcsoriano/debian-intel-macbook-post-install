@@ -1248,11 +1248,14 @@ xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super><Alt>h' -s "$
 
 # The rest of the macOS keys that start something: keyd sends Super+Alt+<key>
 # (see the keyd config above) and XFCE runs it, as you. mac-shortcut holds the
-# three that need more than one command: the emoji picker (rofi over Debian's
-# Unicode emoji list), showing or hiding the Dock (Plank), and volume in small
-# steps that stop at 100% (PulseAudio's own step can go past it).
+# four that need more than one command: the emoji picker (rofi over Debian's
+# Unicode emoji list), showing or hiding the Dock (Plank), volume in small
+# steps that stop at 100% (PulseAudio's own step can go past it), and
+# inverting the screen's colours. xcalib used to do the last one, but on this
+# X server (modesetting driver) it exits 0 and leaves the gamma ramp as it was;
+# mac-shortcut reverses each lit display's ramp through RandR instead.
 install_pkg "unicode-data" "Unicode emoji list (for the emoji picker)" || true
-install_pkg "xcalib" "xcalib (Invert colors)" || true
+install_pkg "python3-xlib" "python3-xlib (Invert colors)" || true
 install_pkg "xclip" "xclip (copies the picked emoji)" || true
 MAC_SHORTCUT="/usr/local/bin/mac-shortcut"
 sudo tee "$MAC_SHORTCUT" > /dev/null << 'MACSHORTCUT'
@@ -1265,6 +1268,8 @@ sudo tee "$MAC_SHORTCUT" > /dev/null << 'MACSHORTCUT'
     mac-shortcut toggle-dock    Option+Cmd+D / Fn+A: Dock auto-hide on or off
     mac-shortcut volume STEP    Option+Shift+volume keys: change the volume by
                                 STEP percent (e.g. -1), between 0 and 100
+    mac-shortcut invert         Ctrl+Option+Cmd+8: invert the screen's colours;
+                                again restores them
 """
 import os
 import re
@@ -1304,6 +1309,13 @@ def new_volume(pactl_output, step):
     if not m:
         raise ValueError("no volume in pactl output")
     return max(0, min(100, int(m.group(1)) + step))
+
+
+def inverted(ramp):
+    """A gamma ramp with its colours inverted: the same curve, read from the
+    top. Reversing twice gives the ramp back, so the key toggles, and any
+    calibration already in the ramp survives the round trip."""
+    return list(reversed(ramp))
 
 
 def run(*cmd, **kw):
@@ -1350,11 +1362,38 @@ def volume(step):
     return 0
 
 
+def invert():
+    """Invert every lit display's gamma ramp through RandR. Exit 1 when no
+    display took it, so a silent no-op cannot pass for success."""
+    from Xlib import display
+    from Xlib.ext import randr
+    disp = display.Display()
+    root = disp.screen().root
+    resources = randr.get_screen_resources(root)
+    done = 0
+    for crtc in resources.crtcs:
+        if not randr.get_crtc_info(root, crtc, resources.config_timestamp).outputs:
+            continue  # not driving a display
+        gamma = randr.get_crtc_gamma(root, crtc)
+        if not gamma.red:
+            continue  # no ramp to change
+        randr.set_crtc_gamma(root, crtc, len(gamma.red),
+                             inverted(gamma.red), inverted(gamma.green), inverted(gamma.blue))
+        done += 1
+    disp.sync()
+    if not done:
+        print("mac-shortcut: no display has a gamma ramp to invert", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv):
     if argv[1:] == ["emoji"]:
         return emoji()
     if argv[1:] == ["toggle-dock"]:
         return toggle_dock()
+    if argv[1:] == ["invert"]:
+        return invert()
     if len(argv) == 3 and argv[1] == "volume" and re.fullmatch(r"[+-]?\d+", argv[2]):
         return volume(int(argv[2]))
     print(__doc__, file=sys.stderr)
@@ -1379,7 +1418,7 @@ done << SHORTCUTS
 <Super><Alt>3|xfce4-keyboard-settings
 <Super><Alt>4|xfwm4-settings
 <Super><Alt>5|xfce4-accessibility-settings
-<Super><Alt>8|xcalib -invert -alter
+<Super><Alt>8|$MAC_SHORTCUT invert
 <Super><Alt>space|xfce4-appfinder
 <Super><Alt>t|exo-open --launch TerminalEmulator
 <Super><Alt>f|thunar --window $ACTUAL_HOME

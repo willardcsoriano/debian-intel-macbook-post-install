@@ -185,7 +185,7 @@ Text	Shift-Command-S	Save As	native	-cmd+shift.s	Ctrl+Shift+S
 Text	Shift-Command-Minus	Smaller	native	-cmd.minus	Ctrl+Minus zooms out
 Text	Shift-Command-Plus or Command-Equal	Bigger	native	-cmd.equal	Ctrl+Equal zooms in
 Text	Shift-Command-Question mark	Help	mapped	+cmd+shift.slash	F1
-Accessibility	Control-Option-Command-8	Invert colors	unverified	+control+cmd+option.8	xcalib inverts the screen's colours; pressing again should restore them (unchecked)
+Accessibility	Control-Option-Command-8	Invert colors	mapped	+control+cmd+option.8	mac-shortcut reverses each display's gamma ramp through RandR; pressing again restores it (xcalib left the ramp unchanged on this X server)
 Accessibility	Control-Option-Command-Comma / Period	Contrast	no-equivalent		no contrast control on this desktop
 Accessibility	Control-F2	Focus the menu bar	mapped	+control.f2	F10, the menu bar in GTK apps (press Fn too, as on a Mac)
 Accessibility	Control-F3	Focus the Dock	no-equivalent		Plank takes no keyboard focus
