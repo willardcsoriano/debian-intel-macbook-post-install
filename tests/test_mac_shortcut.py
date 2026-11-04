@@ -256,11 +256,21 @@ class InvertRun(unittest.TestCase):
 XFCE_DEFAULTS = {"<Super>tab", "<Super>p"}
 
 
+# keyd key names that X spells differently
+KEYSYMS = {"left": "Left", "right": "Right", "up": "Up", "down": "Down"}
+
+
 def xfce_combo(keyd_combo):
     """M-A-minus -> <Super><Alt>minus, modifiers in a fixed order."""
     *mods, key = keyd_combo.split("-")
     names = {"M": "<Super>", "S": "<Shift>", "A": "<Alt>", "C": "<Primary>"}
-    return "".join(names[m] for m in sorted(mods)) + key
+    return "".join(names[m] for m in sorted(mods)) + KEYSYMS.get(key, key)
+
+
+def window_keys():
+    """(combo, xfwm4 action) for each window binding setup.sh writes."""
+    body = setup_extract.heredoc(r"^done << 'WINDOW_KEYS'$", "WINDOW_KEYS")
+    return [tuple(line.split("|", 1)) for line in body.splitlines()]
 
 
 def normalize(xfce):
@@ -276,6 +286,7 @@ class KeydReachesXfce(unittest.TestCase):
         found = re.findall(r"-p '/commands/custom/([^']+)'", text)
         found += [line.split("|", 1)[0] for line in
                   setup_extract.heredoc(r"^done << SHORTCUTS$", "SHORTCUTS").splitlines()]
+        found += [combo for combo, _ in window_keys()]
         return {normalize(b) for b in found}
 
     def test_every_super_combo_is_bound(self):
@@ -291,6 +302,7 @@ class KeydReachesXfce(unittest.TestCase):
         found = re.findall(r"-p '/commands/custom/([^']+)'", text)
         found += [line.split("|", 1)[0] for line in
                   setup_extract.heredoc(r"^done << SHORTCUTS$", "SHORTCUTS").splitlines()]
+        found += [combo for combo, _ in window_keys()]
         normalized = [normalize(b) for b in found]
         self.assertEqual(len(normalized), len(set(normalized)))
 
@@ -410,3 +422,35 @@ class AppFinderReload(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# XFCE's default shortcuts, shipped by libxfce4ui-common (CI installs it too)
+XFCE_DEFAULTS_XML = "/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml"
+
+
+class WindowKeys(unittest.TestCase):
+    def test_actions_are_real_xfwm4_actions(self):
+        # A misspelled action name is accepted by xfconf and silently does
+        # nothing, so check each against the actions XFCE itself ships.
+        import xml.etree.ElementTree as ET
+        root = ET.parse(XFCE_DEFAULTS_XML).getroot()
+        xfwm4 = root.find("./property[@name='xfwm4']")
+        actions = {p.get("value") for p in xfwm4.iter("property") if p.get("type") == "string"}
+        self.assertIn("tile_left_key", actions)
+        for combo, action in window_keys():
+            with self.subTest(combo=combo):
+                self.assertIn(action, actions)
+
+    def test_every_tile_key_reaches_its_action(self):
+        # Fn+Control+arrow (and the Home/End/PageUp/PageDown Apple's driver
+        # turns them into) lands on the matching tile; Fn+Control+F fills.
+        layer = keyd_layer("control+globe")
+        actions = {normalize(combo): action for combo, action in window_keys()}
+        expect = {"left": "tile_left_key", "home": "tile_left_key",
+                  "right": "tile_right_key", "end": "tile_right_key",
+                  "up": "tile_up_key", "pageup": "tile_up_key",
+                  "down": "tile_down_key", "pagedown": "tile_down_key",
+                  "f": "maximize_window_key"}
+        for key, action in expect.items():
+            with self.subTest(key=key):
+                self.assertEqual(actions[xfce_combo(layer[key])], action)
