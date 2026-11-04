@@ -204,3 +204,18 @@ Accessibility	Control-Shift-Tab	Previous group of controls	native
 Accessibility	Arrow keys	Adjacent item	native
 Accessibility	Control-Arrow keys	Control next to the text field	exception	+control.up +control.left	Control+arrows are Mission Control and desktops, as macOS also sets them
 Accessibility	Option-Command-F5	Accessibility Shortcuts panel	mapped	+cmd+option.f5	XFCE's accessibility settings (press Fn too)
+Windows	Fn-Control-F	Fill	partial	+control+globe.f	XFCE's maximize; it toggles, so pressing it again restores the window
+Windows	Fn-Control-C	Center	no-equivalent		xfwm4 has no center-window action
+Windows	Fn-Control-Left Arrow	Tile left	mapped	+control+globe.home +control+globe.left	XFCE's tile left (Apple's driver sends Home for Fn+Left)
+Windows	Fn-Control-Right Arrow	Tile right	mapped	+control+globe.end +control+globe.right	XFCE's tile right (Fn+Right arrives as End)
+Windows	Fn-Control-Up Arrow	Tile top	mapped	+control+globe.pageup +control+globe.up	XFCE's tile up (Fn+Up arrives as Page Up)
+Windows	Fn-Control-Down Arrow	Tile bottom	mapped	+control+globe.pagedown +control+globe.down	XFCE's tile down (Fn+Down arrives as Page Down)
+Windows	Fn-Control-R	Return to previous size	no-equivalent		xfwm4 keeps no previous size for a tiled window; Fn-Control-F toggles a filled one back
+Windows	Fn-Control-Shift-Left Arrow	Arrange left & right	no-equivalent		xfwm4 tiles one window at a time; it can't arrange several
+Windows	Fn-Control-Shift-Right Arrow	Arrange right & left	no-equivalent		xfwm4 tiles one window at a time
+Windows	Fn-Control-Shift-Up Arrow	Arrange top & bottom	no-equivalent		xfwm4 tiles one window at a time
+Windows	Fn-Control-Shift-Down Arrow	Arrange bottom & top	no-equivalent		xfwm4 tiles one window at a time
+Windows	Fn-Control-Option-Shift-Left Arrow	Arrange left & quarters	no-equivalent		xfwm4 tiles one window at a time
+Windows	Fn-Control-Option-Shift-Right Arrow	Arrange right & quarters	no-equivalent		xfwm4 tiles one window at a time
+Windows	Fn-Control-Option-Shift-Up Arrow	Arrange top & quarters	no-equivalent		xfwm4 tiles one window at a time
+Windows	Fn-Control-Option-Shift-Down Arrow	Arrange bottom & quarters	no-equivalent		xfwm4 tiles one window at a time

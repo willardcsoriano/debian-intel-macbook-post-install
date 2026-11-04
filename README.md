@@ -664,6 +664,8 @@ the config setup.sh writes, so a row can't claim a key that isn't bound.
 | Power (Ctrl+Power too) | Log-out dialog: restart, suspend, shut down. Ctrl+Shift+Power has no display-sleep equivalent: the remapper never sees the power key |
 | Ctrl+A / E / F / B / N / P / H / D / K / O | macOS text-field keys: line start / end, move, delete, cut to end of line, open a line |
 | Ctrl+Cmd+F | Full screen |
+| Fn+Ctrl+Left / Right / Up / Down | Tile the window to that half of the screen |
+| Fn+Ctrl+F | Fill the screen (press again to restore) |
 | Cmd+Option+Esc | Force quit (click a window) |
 | In Files: Cmd+D, Cmd+Shift+D / H / G / F / K / C / O, Cmd+Option+L, Cmd+Shift+Delete, Cmd+/, Ctrl+Cmd+T, Cmd+Shift+. | Duplicate; Desktop, Home, Go to Folder, Recents, Network, Computer, Documents, Downloads; Empty Trash; status bar; add to sidebar; show hidden files |
 | In LibreOffice: Cmd+{ / } / \|, Cmd+; | Align left / right / center, Spelling |
