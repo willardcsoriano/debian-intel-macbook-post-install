@@ -1128,6 +1128,21 @@ a = M-A-d
 [globe+shift]
 # Fn+Shift+A: Apps (Launchpad)
 a = M-A-space
+
+[control+globe]
+# Fn+Control+arrows: tile the window to that half of the screen; Fn+Control+F:
+# fill it. XFCE's tile and maximize actions do the work (Super+Alt+arrow and
+# Super+Alt+M, bound below). Apple's keyboard driver turns Fn+arrows into
+# Home/End/PageUp/PageDown before keyd sees them, so both forms are bound.
+home = M-A-left
+end = M-A-right
+pageup = M-A-up
+pagedown = M-A-down
+left = M-A-left
+right = M-A-right
+up = M-A-up
+down = M-A-down
+f = M-A-m
 EOF
 
 print_ok "Keyboard config written"
@@ -1430,6 +1445,19 @@ done << SHORTCUTS
 <Super><Alt>t|exo-open --launch TerminalEmulator
 <Super><Alt>f|thunar --window $ACTUAL_HOME
 SHORTCUTS
+
+# Window tiling and fill (Fn+Control+arrows and Fn+Control+F on a Mac): keyd
+# sends Super+Alt+arrow or Super+Alt+M, and xfwm4's own actions do the work.
+# XFCE's default tile keys need a numeric keypad, which a MacBook doesn't have.
+while IFS='|' read -r combo action; do
+    xfconf_set -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/$combo" -s "$action" --create -t string
+done << 'WINDOW_KEYS'
+<Super><Alt>Left|tile_left_key
+<Super><Alt>Right|tile_right_key
+<Super><Alt>Up|tile_up_key
+<Super><Alt>Down|tile_down_key
+<Super><Alt>m|maximize_window_key
+WINDOW_KEYS
 
 # Per-app keys. A few Cmd keys must mean something else in some apps: in a
 # terminal Cmd+C has to copy rather than interrupt, and in Files Cmd+Backspace
