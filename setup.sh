@@ -2135,15 +2135,14 @@ fi
 # MemorySleepMode=s2idle makes systemd write s2idle to /sys/power/mem_sleep on
 # every mem suspend, so the fix holds even before the next reboot / if GRUB is
 # regenerated without the param.
-print_info "Configuring systemd suspend-then-hibernate (s2idle)..."
-sudo mkdir -p /etc/systemd
-sudo tee /etc/systemd/sleep.conf > /dev/null << 'EOF'
-[Sleep]
-AllowSuspendThenHibernate=yes
-HibernateDelaySec=30min
-MemorySleepMode=s2idle
-EOF
-print_ok "systemd configured — s2idle suspend → hibernate after 30 minutes"
+# HibernateDelaySec: s2idle is not a deep sleep on these MacBooks. It draws
+# about 3 W (about 1.6 Wh lost over a 30-minute lid close on 2026-11-17, from
+# UPower's charge history), enough to make a closed laptop in a bag warm, so
+# it hibernates after 10 minutes rather than 30. A close shorter than that
+# still resumes instantly.
+ensure_file /etc/systemd/sleep.conf \
+    $'[Sleep]\nAllowSuspendThenHibernate=yes\nHibernateDelaySec=10min\nMemorySleepMode=s2idle' \
+    "systemd: s2idle suspend, then hibernate after 10 minutes" || true
 
 # logind (lid policy layer)
 # logind now owns the lid (see logind-handle-lid-switch above). suspend-then-

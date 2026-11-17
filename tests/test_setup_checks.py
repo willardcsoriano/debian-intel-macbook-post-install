@@ -178,6 +178,16 @@ class GrubS2idle(unittest.TestCase):
         self.assertEqual(self.check(None), "false")
 
 
+class SleepConf(unittest.TestCase):
+    def test_hibernates_after_ten_minutes_of_s2idle(self):
+        text = setup_extract.setup_text()
+        m = re.search(r"ensure_file /etc/systemd/sleep\.conf \\\n\s*\$'([^']*)'", text)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group(1).split("\\n"),
+                         ["[Sleep]", "AllowSuspendThenHibernate=yes", "HibernateDelaySec=10min",
+                          "MemorySleepMode=s2idle"])
+
+
 class NoExistenceOnlyChecks(unittest.TestCase):
     """The files setup.sh owns are checked by content, not by existence."""
 
@@ -185,7 +195,7 @@ class NoExistenceOnlyChecks(unittest.TestCase):
         text = setup_extract.setup_text()
         for path in ("$BLACKLIST_FILE", "/etc/modules-load.d/broadcom.conf", "$UU_EXTRA",
                      "$ACPOWER_OVERRIDE_FILE", "/etc/modules-load.d/facetimehd.conf",
-                     "/etc/modprobe.d/alsa-base.conf"):
+                     "/etc/modprobe.d/alsa-base.conf", "/etc/systemd/sleep.conf"):
             with self.subTest(path=path):
                 self.assertIn(f'ensure_file {path if path.startswith("/") else chr(34) + path + chr(34)} ', text)
                 self.assertNotRegex(text, re.escape(f'[ ! -f "{path}" ]'))
