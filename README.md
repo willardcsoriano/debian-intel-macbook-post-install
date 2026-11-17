@@ -728,6 +728,15 @@ means it survives kernel updates without any manual intervention.
 - xfce4-battery-plugin — battery level and charging status in taskbar
 - xfce4-power-manager — lid close triggers suspend and screen lock.
   Password required on wake.
+- Closing the lid suspends, then hibernates after 10 minutes
+  (`/etc/systemd/sleep.conf`). Suspend here is s2idle, since deep sleep never
+  resumes on these MacBooks, and s2idle still draws about 3 W: enough to
+  warm a closed laptop in a bag over half an hour. A short close resumes
+  instantly; a longer one resumes from disk, slower but with nothing lost.
+- The low-battery action goes by time remaining, not percentage
+  (`UsePercentageForPolicy=false` in `/etc/UPower/UPower.conf`). The battery
+  can report a full capacity far above its design, and then the percentage
+  reads near zero on a healthy battery, while the time remaining stays right.
 - Keyboard backlight follows the display, as on a Mac. A sleep hook turns it
   off during suspend, and a small watcher started at login
   (`/usr/local/bin/kbd-backlight-follow-display`) turns it off while the
