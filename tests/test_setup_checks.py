@@ -38,7 +38,7 @@ def function(name):
 
 def run(script, *args):
     """Run setup.sh functions plus script; returns (rc, stdout)."""
-    code = PRELUDE + "".join(function(f) for f in ("ensure_file", "vscode_source_ok", "grub_has_s2idle"))
+    code = PRELUDE + "".join(function(f) for f in ("ensure_file", "vscode_source_ok", "grub_has_s2idle", "upower_time_policy"))
     r = subprocess.run(["bash", "-c", code + script, "_", *args],
                        capture_output=True, text=True, timeout=60)
     return r.returncode, r.stdout
@@ -176,6 +176,50 @@ class GrubS2idle(unittest.TestCase):
 
     def test_missing_file(self):
         self.assertEqual(self.check(None), "false")
+
+
+class UpowerTimePolicy(unittest.TestCase):
+    """Debian's UPower.conf as shipped, and the shapes it can drift into."""
+
+    DEBIAN = ("[UPower]\nEnableWattsUpPro=false\nNoPollBatteries=false\nIgnoreLid=false\n"
+              "UsePercentageForPolicy=true\nPercentageLow=20.0\nPercentageCritical=5.0\n"
+              "PercentageAction=2.0\nTimeLow=1200\nTimeCritical=300\nTimeAction=120\n"
+              "AllowRiskyCriticalPowerAction=false\nCriticalPowerAction=HybridSleep\n")
+
+    def apply(self, text):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        path = os.path.join(d, "UPower.conf")
+        if text is not None:
+            with open(path, "w") as f:
+                f.write(text)
+        rc = run('upower_time_policy "$1"; echo "rc=$?"', path)[1].strip()
+        after = open(path).read() if os.path.exists(path) else None
+        return rc, after
+
+    def test_debian_default_is_switched_and_nothing_else_changes(self):
+        rc, after = self.apply(self.DEBIAN)
+        self.assertEqual(rc, "rc=0")
+        self.assertEqual(after, self.DEBIAN.replace("UsePercentageForPolicy=true", "UsePercentageForPolicy=false"))
+
+    def test_already_set_is_left_alone(self):
+        text = self.DEBIAN.replace("UsePercentageForPolicy=true", "UsePercentageForPolicy=false")
+        self.assertEqual(self.apply(text), ("rc=1", text))
+
+    def test_missing_line_is_added_to_the_section(self):
+        rc, after = self.apply("[UPower]\nCriticalPowerAction=HybridSleep\n")
+        self.assertEqual(rc, "rc=0")
+        self.assertEqual(after, "[UPower]\nUsePercentageForPolicy=false\nCriticalPowerAction=HybridSleep\n")
+
+    def test_a_comment_does_not_count_as_set(self):
+        rc, after = self.apply("[UPower]\n# UsePercentageForPolicy=false\nUsePercentageForPolicy=true\n")
+        self.assertEqual(rc, "rc=0")
+        self.assertIn("\nUsePercentageForPolicy=false\n", after)
+        self.assertNotIn("UsePercentageForPolicy=true", after)
+
+    def test_no_section_or_no_file_fails(self):
+        self.assertEqual(self.apply("CriticalPowerAction=HybridSleep\n")[0], "rc=2")
+        self.assertEqual(self.apply(None), ("rc=2", None))
 
 
 class SleepConf(unittest.TestCase):

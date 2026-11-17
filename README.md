@@ -733,6 +733,10 @@ means it survives kernel updates without any manual intervention.
   resumes on these MacBooks, and s2idle still draws about 3 W: enough to
   warm a closed laptop in a bag over half an hour. A short close resumes
   instantly; a longer one resumes from disk, slower but with nothing lost.
+- The low-battery action goes by time remaining, not percentage
+  (`UsePercentageForPolicy=false` in `/etc/UPower/UPower.conf`). The battery
+  can report a full capacity far above its design, and then the percentage
+  reads near zero on a healthy battery, while the time remaining stays right.
 - Keyboard backlight follows the display, as on a Mac. A sleep hook turns it
   off during suspend, and a small watcher started at login
   (`/usr/local/bin/kbd-backlight-follow-display`) turns it off while the

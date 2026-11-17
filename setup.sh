@@ -138,6 +138,24 @@ grub_has_s2idle() {
     grep -qE '^GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\bmem_sleep_default=s2idle\b' "$1" 2>/dev/null
 }
 
+# UPower's low-battery policy (CriticalPowerAction) goes by time remaining,
+# not percentage. These batteries can report a full capacity far above their
+# design: one reported 490 Wh on a 54 Wh battery, so a 36% charge read as 2%
+# for a week and the critical action, set at 2%, could fire on a healthy
+# battery. Time remaining comes from the energy left and the drain rate,
+# which stay right. Returns 0 = set now, 1 = already set, 2 = failed.
+upower_time_policy() {
+    local conf=$1
+    grep -qx 'UsePercentageForPolicy=false' "$conf" 2>/dev/null && return 1
+    [ -f "$conf" ] || return 2
+    if grep -q '^UsePercentageForPolicy=' "$conf"; then
+        sudo sed -i 's/^UsePercentageForPolicy=.*/UsePercentageForPolicy=false/' "$conf" || return 2
+    else
+        sudo sed -i '/^\[UPower\]$/a UsePercentageForPolicy=false' "$conf" || return 2
+    fi
+    grep -qx 'UsePercentageForPolicy=false' "$conf" || return 2
+}
+
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
 # dpkg-query, not dpkg -s: with a foreign architecture enabled (e.g. i386), a
 # package installed for both is "ambiguous" to dpkg -s and looks missing.
@@ -887,6 +905,26 @@ fi
 sudo systemctl enable NetworkManager >>"$LOG_FILE" 2>&1 || true
 sudo systemctl start NetworkManager >>"$LOG_FILE" 2>&1 || true
 check_active NetworkManager "NetworkManager is running — WiFi will connect automatically on boot"
+
+# UPower (low-battery policy layer): see upower_time_policy.
+if [ -f /etc/UPower/UPower.conf ]; then
+    upower_rc=0
+    upower_time_policy /etc/UPower/UPower.conf || upower_rc=$?
+    case $upower_rc in
+        0)
+            # Restarting upowerd is safe (unlike logind): it only re-reads the battery.
+            sudo systemctl try-restart upower.service
+            print_ok "UPower: low-battery action goes by time remaining, not percentage"
+            ;;
+        1) print_skip "UPower: low-battery action goes by time remaining, not percentage" ;;
+        *)
+            print_fail "UPower: could not set UsePercentageForPolicy=false in /etc/UPower/UPower.conf"
+            FAILED+=("UPower low-battery policy")
+            ;;
+    esac
+else
+    print_skip "UPower is not installed: no low-battery policy to set"
+fi
 
 # polkit (authority / safety layer)
 # Debian lets a local, *active* sudo/netdev user change system network
