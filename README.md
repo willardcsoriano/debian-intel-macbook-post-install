@@ -78,11 +78,11 @@ project instead.
 
 **Setup script** (required):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.12.0/setup.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.13.0/setup.sh)
 
 **Theming script** (optional, run after first reboot):
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.12.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.13.0/themes.sh)
 
 ---
 
@@ -305,7 +305,7 @@ WhiteSur GTK theme, macOS-style window controls on the left, and a
 Plank dock at the bottom — run this after the setup script completes and
 you have rebooted into the desktop:
 
-    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.12.0/themes.sh)
+    bash <(curl -s https://raw.githubusercontent.com/willardcsoriano/debian-intel-macbook-post-install/v1.13.0/themes.sh)
 
 You will be prompted to choose a mode:
 
@@ -844,6 +844,7 @@ https://github.com/willardcsoriano/debian-intel-macbook-wifi-offline
 
 ## Version History
 
+- **v1.13.0** — Per-app Mac keys are reliable: keyd's own application mapper, which fell behind on window-title changes, is replaced by `mac-app-keys`, which reacts only to the front app changing and runs as a user service that restarts on a crash. Window tiling as on macOS: Fn+Ctrl+arrows tile the window to half the screen, Fn+Ctrl+F fills it. More Finder and macOS keys: Cmd+Option+Space opens a Files window, Cmd+Shift+. shows hidden files, Cmd+Option+T opens a new terminal window, Cmd+Option+S takes an area screenshot, and F4, Cmd+Space and Fn+Shift+A open the full App Finder; invert colours goes through RandR instead of xcalib, and the power-key mappings keyd can never see are gone. A working Mac-style Dock set up through GSettings and locked, each Desktop icon shown once, Plank reset on Revert, and Chromium as the default browser when none is chosen. Config steps are checked by their result, not by the file existing, so a re-run puts back a drifted file. Power: the lid hibernates after 10 minutes instead of 30 (s2idle still draws about 3 W, enough to warm a laptop in a bag), and UPower's low-battery action goes by time remaining, since a bogus battery capacity once made a 36% charge read as 2%. Also: setup.sh's shellcheck findings cleared, and the teams-for-linux camera write-up moved into this repo.
 - **v1.12.0** — Mac shortcuts, not just Mac keys: Cmd+H hides the front app and Cmd+Option+H every other app; Fn is a layer (Fn+H / Fn+F11 show the desktop, Fn+E emoji, Fn+A the Dock); an emoji picker on Ctrl+Cmd+Space; Dock auto-hide on Cmd+Option+D; Option and Option+Shift with the top-row keys open their settings or take small steps; invert colors, paragraph moves, Paste and Match Style, Help and developer tools; Finder's keys in Files (Desktop, Home, Go to Folder, Downloads, Documents, Recents, Duplicate, Empty Trash) and alignment and spelling in LibreOffice. `docs/apple-shortcuts.tsv` audits every shortcut on Apple's list and says how each behaves here. The keyboard light now goes dark whenever the display is off, and the lock screen powers the display off after a minute. Tests check the generated keyd config against keyd's grammar and run the helpers against stub tools on every pull request.
 - **v1.11.0** — Make the Mac keyboard work: Cmd is a held keyd layer (the old chord bindings never fired), keys follow macOS Monterey with Cmd+Tab for the next tab and Option+Tab to switch apps, Left Option never sends a bare Alt (Option+Right opened the File menu), the control key does what it does on macOS, and keyd's per-app mapper gives the terminal, Files and browsers their own keys; F3 and screenshots no longer run as root. Take the safety snapshot for the first time (Timeshift 24.06 rejected `--tags O`), keep one per script version and only two in total, and add `--no-snapshot`. Turn on a ufw firewall. Report service and keyd results by what actually happened, and stop reinstalling multiarch packages. Curate the apps (xfce4-terminal, Mousepad, galculator; GNOME Terminal and gedit dropped), converge Desktop and dock launchers on re-run without deleting the user's own, and default text to Mousepad and images to Ristretto. Install both WhiteSur variants. Mac trackpad defaults. Restructure the README into a user guide and a reference, and add Getting Started and Keyboard Shortcuts guides to the app menu. Keep install logs in `~/.local/state`.
 - **v1.10.0** — Refuse NetworkManager changes from locked or background sessions with a polkit rule. With the screen locked, Debian's no-password network rule stops applying, and a background process could raise an admin password dialog nobody asked for. Stop versioned kernel headers from pinning the install-time kernel, so `apt autoremove` can clear superseded kernels. Drop the optional `teams.sh` (`teams-for-linux`) in favor of Teams on the web in Chromium, which is the path where the FaceTime HD camera works; the README gives removal steps for existing installs. Update links for the renamed offline WiFi kit repo, regenerate the TOC with GitHub-accurate anchors, and add the issue labeler, issue forms and PR template.
