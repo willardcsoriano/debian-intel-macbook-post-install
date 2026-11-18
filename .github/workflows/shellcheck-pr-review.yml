@@ -1,4 +1,4 @@
-name: Shellcheck PR Review (auto-approve)
+name: Shellcheck PR Review
 
 # Free alternative to an LLM-based review: runs shellcheck against every
 # changed shell script and posts the result as a real GitHub review from
@@ -7,10 +7,10 @@ name: Shellcheck PR Review (auto-approve)
 # review, not APPROVE: GitHub's API flatly refuses APPROVE reviews from
 # the default Actions token ("GitHub Actions is not permitted to approve
 # pull requests") as a deliberate anti-self-approval safeguard -- this
-# isn't a repo setting, confirmed directly against the live API. No
-# branch protection or required check is added -- this is a record, not a
-# merge gate. Zero cost: shellcheck ships preinstalled on GitHub's
-# ubuntu-latest runners, no API key or secret needed.
+# isn't a repo setting, confirmed directly against the live API. The
+# branch ruleset requires this job ("review") to have run before a merge;
+# its findings are a record, never a failure. Zero cost: shellcheck ships
+# preinstalled on GitHub's ubuntu-latest runners, no API key or secret needed.
 #
 # Note: because this posts from github-actions[bot], it does NOT count
 # toward the PR author's own GitHub profile contribution stats -- those
