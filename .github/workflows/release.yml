@@ -19,4 +19,4 @@ permissions:
 
 jobs:
   release:
-    uses: willardcsoriano/.github/.github/workflows/release-please.yml@v1
+    uses: willardcsoriano/.github/.github/workflows/release-please.yml@v1.1.0

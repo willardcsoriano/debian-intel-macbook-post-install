@@ -1,0 +1,17 @@
+name: Lint PR review
+
+# The shared lint review in willardcsoriano/.github: shellcheck on changed
+# shell scripts, posted as a COMMENT review from github-actions[bot]. Its
+# check is "lint / review"; findings are a record.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint:
+    uses: willardcsoriano/.github/.github/workflows/lint-review.yml@v1.1.0
