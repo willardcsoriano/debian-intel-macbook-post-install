@@ -1,0 +1,22 @@
+name: Release
+
+# Keeps a release PR open with the next version and changelog, worked out
+# from the Conventional Commit titles merged since the last release, and
+# publishes the release when that PR is merged. The work is the shared
+# workflow in willardcsoriano/.github; release-please-config.json and
+# .release-please-manifest.json configure it. A release PR's checks don't
+# start by themselves (it is opened with GitHub's own token): close and
+# reopen it to run them, as README's Contributing section says.
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    uses: willardcsoriano/.github/.github/workflows/release-please.yml@v1
