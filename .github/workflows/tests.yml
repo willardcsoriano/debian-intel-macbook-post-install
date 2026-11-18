@@ -4,8 +4,8 @@ name: Tests
 # setup.sh writes are checked against keyd's grammar and key list (keyd skips
 # a line it can't parse instead of failing, and has no check command), and the
 # helpers it installs are run against stub tools. Python's standard library,
-# plus the unicode-data package the emoji picker reads. A record, not a merge
-# gate.
+# plus the unicode-data package the emoji picker reads. Required to merge
+# into master: the branch ruleset lists this job ("tests") as a check.
 
 on:
   pull_request:
