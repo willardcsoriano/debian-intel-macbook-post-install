@@ -163,7 +163,7 @@ upower_time_policy() {
 # neither the cgroup nor the kernel freeze can finish. Every attempt fails
 # with "Device or resource busy", and with the lid still closed logind retries
 # at once, so the laptop loops awake and hot instead of sleeping (issue #65:
-# 52 failed attempts in 85 minutes, Packet Tracer blocked on the portal).
+# 52 failed attempts in 85 minutes, one app blocked on the portal).
 # SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=0 skips that cgroup freeze; the kernel
 # freeze still runs. Sets it on every unit in UNIT_SRC whose ExecStart runs
 # systemd-sleep, read from the units rather than listed, so a sleep mode
