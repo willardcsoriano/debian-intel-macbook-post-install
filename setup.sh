@@ -156,6 +156,43 @@ upower_time_policy() {
     grep -qx 'UsePercentageForPolicy=false' "$conf" || return 2
 }
 
+# systemd 256+ freezes user.slice before every sleep, before the kernel's own
+# freeze. That deadlocks when an app is waiting on a FUSE server that runs in
+# the same session (xdg-document-portal at /run/user/$UID/doc): the server is
+# frozen mid-request, the waiting threads sit in uninterruptible sleep, and
+# neither the cgroup nor the kernel freeze can finish. Every attempt fails
+# with "Device or resource busy", and with the lid still closed logind retries
+# at once, so the laptop loops awake and hot instead of sleeping (issue #65:
+# 52 failed attempts in 85 minutes, Packet Tracer blocked on the portal).
+# SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=0 skips that cgroup freeze; the kernel
+# freeze still runs. Sets it on every unit in UNIT_SRC whose ExecStart runs
+# systemd-sleep, read from the units rather than listed, so a sleep mode
+# systemd adds later is covered too. Returns 0 = a drop-in written now,
+# 1 = all already in place, 2 = failed or no sleep units found.
+sleep_keeps_sessions_unfrozen() {
+    local unit_src=$1 dropin_root=$2 unit name rc result=1 found=0
+    for unit in "$unit_src"/*.service; do
+        grep -q '^ExecStart=.*/systemd-sleep ' "$unit" 2>/dev/null || continue
+        found=1
+        name=$(basename "$unit")
+        ensure_file "$dropin_root/$name.d/10-no-session-freeze.conf" \
+            $'[Service]\nEnvironment=SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=0' \
+            "$name: user session stays unfrozen during sleep"
+        rc=$?
+        if [ "$rc" -eq 2 ]; then
+            result=2
+        elif [ "$rc" -eq 0 ] && [ "$result" -ne 2 ]; then
+            result=0
+        fi
+    done
+    if [ "$found" -eq 0 ]; then
+        print_fail "No systemd-sleep units found in $unit_src"
+        FAILED+=("sleep units without session freeze")
+        return 2
+    fi
+    return "$result"
+}
+
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
 # dpkg-query, not dpkg -s: with a foreign architecture enabled (e.g. i386), a
 # package installed for both is "ambiguous" to dpkg -s and looks missing.
@@ -2181,6 +2218,13 @@ fi
 ensure_file /etc/systemd/sleep.conf \
     $'[Sleep]\nAllowSuspendThenHibernate=yes\nHibernateDelaySec=10min\nMemorySleepMode=s2idle' \
     "systemd: s2idle suspend, then hibernate after 10 minutes" || true
+
+# Keep the user session unfrozen while the system sleeps (see
+# sleep_keeps_sessions_unfrozen): without this, one app waiting on the
+# document portal turns every lid close into a loop of failed suspends.
+if sleep_keeps_sessions_unfrozen /usr/lib/systemd/system /etc/systemd/system; then
+    sudo systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
+fi
 
 # logind (lid policy layer)
 # logind now owns the lid (see logind-handle-lid-switch above). suspend-then-
