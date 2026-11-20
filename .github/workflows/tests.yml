@@ -4,7 +4,8 @@ name: Tests
 # setup.sh writes are checked against keyd's grammar and key list (keyd skips
 # a line it can't parse instead of failing, and has no check command), and the
 # helpers it installs are run against stub tools. Python's standard library,
-# plus the unicode-data package the emoji picker reads. Required to merge
+# plus the unicode-data package the emoji picker reads and desktop-file-utils
+# for checking the launchers setup.sh writes. Required to merge
 # into master: the branch ruleset lists this job ("tests") as a check.
 
 on:
@@ -20,8 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # The emoji picker's test reads Debian's Unicode emoji list
-      - name: Install unicode-data
-        run: sudo apt-get update && sudo apt-get install -y unicode-data libxfce4ui-common
+      # The emoji picker's test reads Debian's Unicode emoji list; the launcher
+      # tests run desktop-file-validate
+      - name: Install test dependencies
+        run: sudo apt-get update && sudo apt-get install -y unicode-data libxfce4ui-common desktop-file-utils
       - name: Run tests
         run: python3 -m unittest discover -s tests -v
