@@ -741,6 +741,13 @@ means it survives kernel updates without any manual intervention.
   resumes on these MacBooks, and s2idle still draws about 3 W: enough to
   warm a closed laptop in a bag over half an hour. A short close resumes
   instantly; a longer one resumes from disk, slower but with nothing lost.
+- Sleep doesn't pause your whole session first. systemd's default is to
+  freeze every user program before sleeping, and that can deadlock: an app
+  in the middle of reading a file through the document portal can never be
+  frozen, every suspend fails, and with the lid still closed the laptop
+  keeps retrying, awake and hot. A drop-in
+  (`/etc/systemd/system/systemd-*.service.d/10-no-session-freeze.conf`)
+  sets `SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=0` on each sleep service.
 - The low-battery action goes by time remaining, not percentage
   (`UsePercentageForPolicy=false` in `/etc/UPower/UPower.conf`). The battery
   can report a full capacity far above its design, and then the percentage

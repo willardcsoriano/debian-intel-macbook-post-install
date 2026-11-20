@@ -38,7 +38,8 @@ def function(name):
 
 def run(script, *args):
     """Run setup.sh functions plus script; returns (rc, stdout)."""
-    code = PRELUDE + "".join(function(f) for f in ("ensure_file", "vscode_source_ok", "grub_has_s2idle", "upower_time_policy"))
+    code = PRELUDE + "".join(function(f) for f in ("ensure_file", "vscode_source_ok", "grub_has_s2idle", "upower_time_policy",
+                                                  "sleep_keeps_sessions_unfrozen"))
     r = subprocess.run(["bash", "-c", code + script, "_", *args],
                        capture_output=True, text=True, timeout=60)
     return r.returncode, r.stdout
@@ -230,6 +231,89 @@ class SleepConf(unittest.TestCase):
         self.assertEqual(m.group(1).split("\\n"),
                          ["[Sleep]", "AllowSuspendThenHibernate=yes", "HibernateDelaySec=10min",
                           "MemorySleepMode=s2idle"])
+
+
+class SleepKeepsSessionsUnfrozen(unittest.TestCase):
+    """Issue #65: systemd's user.slice freeze deadlocked on the document
+    portal, so every unit that runs systemd-sleep gets a drop-in that skips it."""
+
+    DROPIN = "[Service]\nEnvironment=SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=0\n"
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.src = os.path.join(self.dir, "lib")
+        self.etc = os.path.join(self.dir, "etc")
+        os.mkdir(self.src)
+
+    def unit(self, name, execstart):
+        with open(os.path.join(self.src, name), "w") as f:
+            f.write(f"[Unit]\nDescription=x\n\n[Service]\nType=oneshot\nExecStart={execstart}\n")
+
+    def apply(self):
+        return run('sleep_keeps_sessions_unfrozen "$1" "$2"; echo "rc=$? failed=${#FAILED[@]}"',
+                   self.src, self.etc)[1]
+
+    def dropins(self):
+        found = {}
+        for root, _, files in os.walk(self.etc):
+            for name in files:
+                with open(os.path.join(root, name)) as f:
+                    found[os.path.relpath(os.path.join(root, name), self.etc)] = f.read()
+        return found
+
+    def test_every_sleep_unit_gets_the_dropin_and_nothing_else_does(self):
+        self.unit("systemd-suspend.service", "/usr/lib/systemd/systemd-sleep suspend")
+        self.unit("systemd-suspend-then-hibernate.service",
+                  "/usr/lib/systemd/systemd-sleep suspend-then-hibernate")
+        self.unit("systemd-logind.service", "/usr/lib/systemd/systemd-logind")
+        self.unit("sleep-lookalike.service", "/usr/bin/echo systemd-sleep suspend")
+        out = self.apply()
+        self.assertIn("rc=0 failed=0", out)
+        self.assertEqual(self.dropins(), {
+            "systemd-suspend.service.d/10-no-session-freeze.conf": self.DROPIN,
+            "systemd-suspend-then-hibernate.service.d/10-no-session-freeze.conf": self.DROPIN,
+        })
+
+    def test_second_run_changes_nothing_and_says_so(self):
+        self.unit("systemd-suspend.service", "/usr/lib/systemd/systemd-sleep suspend")
+        self.apply()
+        self.assertIn("rc=1 failed=0", self.apply())
+
+    def test_one_missing_dropin_is_restored(self):
+        self.unit("systemd-suspend.service", "/usr/lib/systemd/systemd-sleep suspend")
+        self.unit("systemd-hibernate.service", "/usr/lib/systemd/systemd-sleep hibernate")
+        self.apply()
+        os.remove(os.path.join(self.etc, "systemd-hibernate.service.d", "10-no-session-freeze.conf"))
+        self.assertIn("rc=0 failed=0", self.apply())
+        self.assertEqual(len(self.dropins()), 2)
+
+    def test_no_sleep_units_is_a_failure_not_a_silent_skip(self):
+        self.unit("systemd-logind.service", "/usr/lib/systemd/systemd-logind")
+        out = self.apply()
+        self.assertIn("rc=2 failed=1", out)
+        self.assertEqual(self.dropins(), {})
+
+    def test_a_failed_write_wins_over_a_successful_one(self):
+        self.unit("a-sleep.service", "/usr/lib/systemd/systemd-sleep suspend")
+        self.unit("b-sleep.service", "/usr/lib/systemd/systemd-sleep hibernate")
+        os.makedirs(self.etc)
+        open(os.path.join(self.etc, "b-sleep.service.d"), "w").close()  # a file where the dir goes
+        out = self.apply()
+        self.assertIn("rc=2 failed=1", out)
+        self.assertIn("a-sleep.service.d/10-no-session-freeze.conf", self.dropins())
+
+    def test_this_systemd_reads_the_variable(self):
+        """The switch exists in the installed systemd-sleep, not just in docs."""
+        binary = "/usr/lib/systemd/systemd-sleep"
+        if not os.path.exists(binary):
+            self.skipTest("no systemd-sleep on this machine")
+        with open(binary, "rb") as f:
+            self.assertIn(b"SYSTEMD_SLEEP_FREEZE_USER_SESSIONS", f.read())
+
+    def test_setup_applies_it_to_the_real_unit_directories(self):
+        self.assertIn("sleep_keeps_sessions_unfrozen /usr/lib/systemd/system /etc/systemd/system",
+                      setup_extract.setup_text())
 
 
 class NoExistenceOnlyChecks(unittest.TestCase):
