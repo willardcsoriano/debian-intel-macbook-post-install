@@ -39,7 +39,7 @@ def function(name):
 def run(script, *args):
     """Run setup.sh functions plus script; returns (rc, stdout)."""
     code = PRELUDE + "".join(function(f) for f in ("ensure_file", "vscode_source_ok", "grub_has_s2idle", "upower_time_policy",
-                                                  "sleep_keeps_sessions_unfrozen"))
+                                                  "sleep_keeps_sessions_unfrozen", "managed_launcher"))
     r = subprocess.run(["bash", "-c", code + script, "_", *args],
                        capture_output=True, text=True, timeout=60)
     return r.returncode, r.stdout
@@ -314,6 +314,72 @@ class SleepKeepsSessionsUnfrozen(unittest.TestCase):
     def test_setup_applies_it_to_the_real_unit_directories(self):
         self.assertIn("sleep_keeps_sessions_unfrozen /usr/lib/systemd/system /etc/systemd/system",
                       setup_extract.setup_text())
+
+
+class ManagedLauncher(unittest.TestCase):
+    """managed_launcher: per-user launcher copies (Terminal, Alarm Clock)."""
+
+    GEN = ('gen() { sed "1a # Managed by debian-intel-macbook-post-install" "$1"; }\n'
+           'broken() { echo partial; return 1; }\n')
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.src = os.path.join(self.dir, "usr", "app.desktop")
+        os.makedirs(os.path.dirname(self.src))
+        with open(self.src, "w") as f:
+            f.write("[Desktop Entry]\nName=App\n")
+        self.dest = os.path.join(self.dir, "home", ".local", "share", "applications", "app.desktop")
+
+    def apply(self, gen="gen"):
+        return run(self.GEN + f'managed_launcher {gen} "$1" "$2" label; echo "rc=$? failed=${{#FAILED[@]}}"',
+                   self.src, self.dest)[1]
+
+    def read(self):
+        with open(self.dest) as f:
+            return f.read()
+
+    def test_written_into_a_missing_directory(self):
+        self.assertIn("rc=0 failed=0", self.apply())
+        self.assertEqual(self.read(), "[Desktop Entry]\n# Managed by debian-intel-macbook-post-install\nName=App\n")
+
+    def test_rerun_rewrites_its_own_copy(self):
+        self.apply()
+        with open(self.src, "a") as f:
+            f.write("Comment=new in the package\n")
+        self.assertIn("rc=0", self.apply())
+        self.assertIn("Comment=new in the package", self.read())
+
+    def test_the_users_own_launcher_is_left_alone(self):
+        os.makedirs(os.path.dirname(self.dest))
+        with open(self.dest, "w") as f:
+            f.write("[Desktop Entry]\nName=Mine\n")
+        out = self.apply()
+        self.assertIn("SKIP: label (you have your own", out)
+        self.assertIn("rc=1 failed=0", out)
+        self.assertEqual(self.read(), "[Desktop Entry]\nName=Mine\n")
+
+    def test_missing_package_is_skipped(self):
+        os.remove(self.src)
+        out = self.apply()
+        self.assertIn("SKIP: label (app not installed)", out)
+        self.assertIn("rc=1 failed=0", out)
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_failed_write_is_reported_and_leaves_no_file(self):
+        out = self.apply("broken")
+        self.assertIn("FAIL: label", out)
+        self.assertIn("rc=2 failed=1", out)
+        self.assertFalse(os.path.exists(self.dest))
+        self.assertFalse(os.path.exists(self.dest + ".tmp"))
+        # so the next run writes it, rather than taking a leftover for the user's own
+        self.assertIn("rc=0 failed=0", self.apply())
+
+    def test_failed_rewrite_keeps_the_previous_copy(self):
+        self.apply()
+        before = self.read()
+        self.assertIn("rc=2", self.apply("broken"))
+        self.assertEqual(self.read(), before)
 
 
 class NoExistenceOnlyChecks(unittest.TestCase):

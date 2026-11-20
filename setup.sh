@@ -193,6 +193,32 @@ sleep_keeps_sessions_unfrozen() {
     return "$result"
 }
 
+# Writes DEST, a per-user copy of the package launcher SRC made by the
+# function GEN, which prints SRC with its changes and a "Managed by
+# debian-intel-macbook-post-install" line. A launcher without that line at
+# DEST is the user's own and is left alone. The copy is written next to DEST
+# and moved into place, so a failed write never leaves a truncated file that
+# would later pass for the user's own. Returns 0 = written, 1 = skipped
+# (package missing or user's own launcher), 2 = failed.
+managed_launcher() {
+    local gen=$1 src=$2 dest=$3 label=$4
+    if [ ! -f "$src" ]; then
+        print_skip "$label ($(basename "$src" .desktop) not installed)"
+        return 1
+    fi
+    if [ -f "$dest" ] && ! grep -q "debian-intel-macbook-post-install" "$dest"; then
+        print_skip "$label (you have your own $dest)"
+        return 1
+    fi
+    if mkdir -p "$(dirname "$dest")" && "$gen" "$src" > "$dest.tmp" && mv -f "$dest.tmp" "$dest"; then
+        return 0
+    fi
+    rm -f "$dest.tmp"
+    print_fail "$label (could not write $dest)"
+    FAILED+=("$label")
+    return 2
+}
+
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
 # dpkg-query, not dpkg -s: with a foreign architecture enabled (e.g. i386), a
 # package installed for both is "ambiguous" to dpkg -s and looks missing.
@@ -2497,13 +2523,8 @@ terminal_launcher() {
     sed -e '1a # Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.' \
         -e 's/^\(Name\(\[en_[A-Z][A-Z]\]\)\{0,1\}\)=Xfce Terminal$/\1=Terminal/' "$1"
 }
-TERMINAL_LAUNCHER="$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop"
-if [ ! -f /usr/share/applications/xfce4-terminal.desktop ]; then
-    print_skip "Terminal name (xfce4-terminal not installed)"
-elif [ -f "$TERMINAL_LAUNCHER" ] && ! grep -q "debian-intel-macbook-post-install" "$TERMINAL_LAUNCHER"; then
-    print_skip "Terminal name (you have your own $TERMINAL_LAUNCHER)"
-else
-    terminal_launcher /usr/share/applications/xfce4-terminal.desktop > "$TERMINAL_LAUNCHER"
+if managed_launcher terminal_launcher /usr/share/applications/xfce4-terminal.desktop \
+    "$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop" "Terminal name"; then
     print_ok "The terminal is listed as Terminal in the menu and App Finder"
 fi
 
@@ -2516,13 +2537,8 @@ alarm_clock_launcher() {
         -e '/^Keywords=/d' \
         -e '/^\[Desktop Entry\]$/a Keywords=alarm;timer;countdown;reminder;clock;wake;' "$1"
 }
-ALARM_LAUNCHER="$ACTUAL_HOME/.local/share/applications/alarm-clock-applet.desktop"
-if [ ! -f /usr/share/applications/alarm-clock-applet.desktop ]; then
-    print_skip "Alarm Clock keywords (alarm-clock-applet not installed)"
-elif [ -f "$ALARM_LAUNCHER" ] && ! grep -q "debian-intel-macbook-post-install" "$ALARM_LAUNCHER"; then
-    print_skip "Alarm Clock keywords (you have your own $ALARM_LAUNCHER)"
-else
-    alarm_clock_launcher /usr/share/applications/alarm-clock-applet.desktop > "$ALARM_LAUNCHER"
+if managed_launcher alarm_clock_launcher /usr/share/applications/alarm-clock-applet.desktop \
+    "$ACTUAL_HOME/.local/share/applications/alarm-clock-applet.desktop" "Alarm Clock keywords"; then
     print_ok "Alarm Clock shows up in App Finder for \"alarm\" and \"timer\""
 fi
 
