@@ -163,7 +163,7 @@ upower_time_policy() {
 # neither the cgroup nor the kernel freeze can finish. Every attempt fails
 # with "Device or resource busy", and with the lid still closed logind retries
 # at once, so the laptop loops awake and hot instead of sleeping (issue #65:
-# 52 failed attempts in 85 minutes, Packet Tracer blocked on the portal).
+# 52 failed attempts in 85 minutes, one app blocked on the portal).
 # SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=0 skips that cgroup freeze; the kernel
 # freeze still runs. Sets it on every unit in UNIT_SRC whose ExecStart runs
 # systemd-sleep, read from the units rather than listed, so a sleep mode
@@ -191,6 +191,32 @@ sleep_keeps_sessions_unfrozen() {
         return 2
     fi
     return "$result"
+}
+
+# Writes DEST, a per-user copy of the package launcher SRC made by the
+# function GEN, which prints SRC with its changes and a "Managed by
+# debian-intel-macbook-post-install" line. A launcher without that line at
+# DEST is the user's own and is left alone. The copy is written next to DEST
+# and moved into place, so a failed write never leaves a truncated file that
+# would later pass for the user's own. Returns 0 = written, 1 = skipped
+# (package missing or user's own launcher), 2 = failed.
+managed_launcher() {
+    local gen=$1 src=$2 dest=$3 label=$4
+    if [ ! -f "$src" ]; then
+        print_skip "$label ($(basename "$src" .desktop) not installed)"
+        return 1
+    fi
+    if [ -f "$dest" ] && ! grep -q "debian-intel-macbook-post-install" "$dest"; then
+        print_skip "$label (you have your own $dest)"
+        return 1
+    fi
+    if mkdir -p "$(dirname "$dest")" && "$gen" "$src" > "$dest.tmp" && mv -f "$dest.tmp" "$dest"; then
+        return 0
+    fi
+    rm -f "$dest.tmp"
+    print_fail "$label (could not write $dest)"
+    FAILED+=("$label")
+    return 2
 }
 
 # Returns: 0 = installed now, 1 = already installed, 2 = failed
@@ -892,6 +918,21 @@ install_pkg "mtpaint" "mtPaint (simple image editor)"
 install_pkg "gdebi" "gdebi (package installer)"
 install_pkg "poppler-utils" "poppler-utils (PDF command-line tools)"
 install_pkg "speech-dispatcher" "speech-dispatcher (text-to-speech)"
+
+# Alarms and timers. alarm-clock-applet runs as a tray icon and starts hidden
+# at every login from the package's own /etc/xdg/autostart entry, so an alarm
+# set before a reboot still rings after it. GNOME Clocks was the other option
+# in Debian: its alarms only run while its window exists (started in the
+# background it quits after 10 seconds), and it pulls in the geoclue location
+# service. The App Finder keywords are added under APP FINDER LAUNCHER FIX.
+install_pkg "alarm-clock-applet" "Alarm Clock (alarms and timers)"
+# The autostart entry takes effect at the next login; start it now too, so
+# alarms set before then ring. pgrep -x matches the kernel's process name,
+# which is cut to 15 characters: alarm-clock-app.
+if [ -n "${DISPLAY:-}" ] && command -v alarm-clock-applet > /dev/null \
+    && ! pgrep -u "$USER" -x alarm-clock-app > /dev/null; then
+    setsid -f alarm-clock-applet --hidden >>"$LOG_FILE" 2>&1 < /dev/null || true
+fi
 
 print_info "Configuring screenshot shortcut..."
 xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Primary><Alt>s' -s 'flameshot gui' --create -t string
@@ -2482,14 +2523,23 @@ terminal_launcher() {
     sed -e '1a # Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.' \
         -e 's/^\(Name\(\[en_[A-Z][A-Z]\]\)\{0,1\}\)=Xfce Terminal$/\1=Terminal/' "$1"
 }
-TERMINAL_LAUNCHER="$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop"
-if [ ! -f /usr/share/applications/xfce4-terminal.desktop ]; then
-    print_skip "Terminal name (xfce4-terminal not installed)"
-elif [ -f "$TERMINAL_LAUNCHER" ] && ! grep -q "debian-intel-macbook-post-install" "$TERMINAL_LAUNCHER"; then
-    print_skip "Terminal name (you have your own $TERMINAL_LAUNCHER)"
-else
-    terminal_launcher /usr/share/applications/xfce4-terminal.desktop > "$TERMINAL_LAUNCHER"
+if managed_launcher terminal_launcher /usr/share/applications/xfce4-terminal.desktop \
+    "$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop" "Terminal name"; then
     print_ok "The terminal is listed as Terminal in the menu and App Finder"
+fi
+
+# Prints the package's Alarm Clock launcher with search keywords added: it
+# ships none, so the App Finder would find it under "alarm" (its name) but not
+# under "timer". Built from the package's own file every run, like the
+# terminal launcher above.
+alarm_clock_launcher() {
+    sed -e '1a # Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.' \
+        -e '/^Keywords=/d' \
+        -e '/^\[Desktop Entry\]$/a Keywords=alarm;timer;countdown;reminder;clock;wake;' "$1"
+}
+if managed_launcher alarm_clock_launcher /usr/share/applications/alarm-clock-applet.desktop \
+    "$ACTUAL_HOME/.local/share/applications/alarm-clock-applet.desktop" "Alarm Clock keywords"; then
+    print_ok "Alarm Clock shows up in App Finder for \"alarm\" and \"timer\""
 fi
 
 # An App Finder left running (F4 keeps one in the background) still shows the
