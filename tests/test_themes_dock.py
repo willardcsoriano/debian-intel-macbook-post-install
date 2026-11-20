@@ -47,6 +47,86 @@ def dock_code():
     return "".join(parts)
 
 
+def launcher_dirs_code():
+    return block(themes_text(), r"^launcher_dirs\(\) \{\n.*?^\}\n")
+
+
+class LauncherDirs(unittest.TestCase):
+    """launcher_dirs: the XDG lookup order, user data dir first."""
+
+    def dirs(self, **env):
+        base = {k: v for k, v in os.environ.items() if k not in ("XDG_DATA_HOME", "XDG_DATA_DIRS")}
+        base.update(HOME="/home/u", **env)
+        out = subprocess.run(["bash", "-euo", "pipefail", "-c", launcher_dirs_code() + "launcher_dirs\n"],
+                             env=base, check=True, capture_output=True, text=True, timeout=30).stdout
+        return out.splitlines()
+
+    def test_defaults_put_the_user_dir_first(self):
+        self.assertEqual(self.dirs(), ["/home/u/.local/share/applications",
+                                       "/usr/local/share/applications",
+                                       "/usr/share/applications"])
+
+    def test_session_xdg_variables_are_followed(self):
+        self.assertEqual(self.dirs(XDG_DATA_HOME="/data/me",
+                                   XDG_DATA_DIRS="/usr/share/xfce4:/var/lib/flatpak/exports/share/:/usr/share"),
+                         ["/data/me/applications", "/usr/share/xfce4/applications",
+                          "/var/lib/flatpak/exports/share/applications", "/usr/share/applications"])
+
+    def test_empty_entries_are_skipped(self):
+        self.assertEqual(self.dirs(XDG_DATA_DIRS=":/usr/share::"),
+                         ["/home/u/.local/share/applications", "/usr/share/applications"])
+
+
+class DockFollowsTheLauncherTheMenuUses(unittest.TestCase):
+    """Issue #64: setup.sh writes fixed copies of launchers to the user's data
+    dir; the dock must point at those, not the system file they hide, or the
+    running app shows as a second icon."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.root, ignore_errors=True)
+        self.home = os.path.join(self.root, "home")
+        self.user_apps = os.path.join(self.home, ".local/share/applications")
+        self.sys_share = os.path.join(self.root, "usr/share")
+        self.store = os.path.join(self.root, "gsettings")
+        self.bin = os.path.join(self.root, "bin")
+        for d in (self.user_apps, os.path.join(self.sys_share, "applications"), self.store, self.bin):
+            os.makedirs(d)
+        with open(os.path.join(self.bin, "gsettings"), "w") as f:
+            f.write(GSETTINGS)
+        os.chmod(os.path.join(self.bin, "gsettings"), 0o755)
+
+    def app(self, directory, name):
+        open(os.path.join(directory, name + ".desktop"), "w").close()
+
+    def launcher(self, item):
+        path = os.path.join(self.home, ".config/plank/dock1/launchers", item)
+        with open(path) as f:
+            return re.search(r"^Launcher=(.*)$", f.read(), re.M).group(1)
+
+    def run_dock(self):
+        script = (dock_code() + launcher_dirs_code() + "mapfile -t SEARCH_DIRS < <(launcher_dirs)\n"
+                  "configure_dock Transparent apps\n")
+        env = {k: v for k, v in os.environ.items() if k not in ("XDG_DATA_HOME", "XDG_DATA_DIRS")}
+        env.update(HOME=self.home, GSETTINGS_STORE=self.store, XDG_DATA_DIRS=self.sys_share,
+                   PATH=self.bin + ":" + os.environ["PATH"])
+        subprocess.run(["bash", "-euo", "pipefail", "-c", script], env=env, check=True,
+                       capture_output=True, text=True, timeout=30)
+
+    def test_user_copy_wins_over_the_system_file(self):
+        sys_apps = os.path.join(self.sys_share, "applications")
+        self.app(sys_apps, "org.xfce.ristretto")
+        self.app(self.user_apps, "org.xfce.ristretto")
+        self.app(sys_apps, "galculator")             # no user copy
+        self.run_dock()
+        self.assertEqual(self.launcher("org.xfce.ristretto.dockitem"),
+                         f"file://{self.user_apps}/org.xfce.ristretto.desktop")
+        self.assertEqual(self.launcher("galculator.dockitem"), f"file://{sys_apps}/galculator.desktop")
+
+    def test_themes_sh_builds_its_dirs_from_launcher_dirs(self):
+        self.assertRegex(themes_text(), r"(?m)^mapfile -t SEARCH_DIRS < <\(launcher_dirs\)$")
+
+
 class ConfigureDock(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
