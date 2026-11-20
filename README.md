@@ -342,6 +342,12 @@ launchers and dock items the script placed itself; anything you pinned to the
 dock or put on the Desktop by hand stays. Re-running does reset the Plank
 dock settings and the solid wallpaper colour to the script's defaults.
 
+Each dock icon points at the same launcher the app menu uses: the per-user
+copy in `~/.local/share/applications` when there is one, otherwise the
+system file. A running app then lights up its pinned icon rather than
+adding a second one beside it. Re-run the script after updating it to
+repoint icons it pinned earlier.
+
 The dock's icons are locked, so an icon dragged off by accident stays put. To
 pin or remove one on purpose, turn the lock off in Plank's Preferences (hold
 Ctrl and right-click the dock), make the change, and turn it back on. The same

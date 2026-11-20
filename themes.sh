@@ -4,11 +4,23 @@ set -e
 # ─────────────────────────────────────────────
 # SHARED PATHS
 # ─────────────────────────────────────────────
-SEARCH_DIRS=(
-    /usr/share/applications
-    /usr/local/share/applications
-    "$HOME/.local/share/applications"
-)
+# Prints the directories launchers are read from, highest precedence first,
+# the order the XDG spec and the app menu use: a launcher in the user's data
+# dir hides a system one of the same name. setup.sh writes fixed copies of
+# several launchers there, so the dock has to point at those copies. If it
+# points at the system file instead, Plank ties a running window to the copy
+# the menu launched and shows it as a second icon beside the pinned one.
+launcher_dirs() {
+    local dir
+    local -a system_dirs=()
+    printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    IFS=: read -ra system_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+    for dir in "${system_dirs[@]}"; do
+        [ -n "$dir" ] && printf '%s\n' "${dir%/}/applications"
+    done
+    return 0
+}
+mapfile -t SEARCH_DIRS < <(launcher_dirs)
 PLANK_DOCK="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
 PLANK_LAUNCHERS="$HOME/.config/plank/dock1/launchers"
 
