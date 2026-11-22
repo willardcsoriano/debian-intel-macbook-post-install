@@ -570,9 +570,12 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
 - gdebi — GUI installer for standalone .deb packages
 - poppler-utils — command-line PDF tools (pdftotext, pdfinfo, pdfimages)
 - speech-dispatcher — text-to-speech backend for accessibility tools
-- alarm-clock-applet — alarms and countdown timers, from a tray icon. It
-  starts hidden at every login, so an alarm set before a reboot still rings
-  after it. Search "alarm" or "timer" in the App Finder to open it.
+- gnome-clocks — GNOME Clocks: alarms, timers, a stopwatch and world clocks.
+  Search "alarm", "timer" or "stopwatch" in the App Finder to open it. Its
+  alarms ring only while its window is open (minimised is fine), and it does
+  not start at login. It brings in the geoclue location service as a
+  dependency. A re-run removes Alarm Clock (alarm-clock-applet) where v1.14.0
+  installed it; a copy you installed yourself is left alone.
 
 ### WiFi Management
 - network-manager + network-manager-gnome — replaces the manual
@@ -794,9 +797,6 @@ It also lists xfce4-terminal as **Terminal** (the package calls it "Xfce
 Terminal"), through a per-user copy of the package's launcher that each run
 regenerates. If you made your own `xfce4-terminal.desktop` there, it is left
 alone.
-
-Alarm Clock gets search keywords the same way (its package ships none), so
-searching "timer" finds it as well as "alarm".
 
 ### Desktop Shortcuts
 Shortcuts for the everyday apps are placed on your Desktop so you can

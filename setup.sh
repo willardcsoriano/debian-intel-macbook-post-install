@@ -919,20 +919,31 @@ install_pkg "gdebi" "gdebi (package installer)"
 install_pkg "poppler-utils" "poppler-utils (PDF command-line tools)"
 install_pkg "speech-dispatcher" "speech-dispatcher (text-to-speech)"
 
-# Alarms and timers. alarm-clock-applet runs as a tray icon and starts hidden
-# at every login from the package's own /etc/xdg/autostart entry, so an alarm
-# set before a reboot still rings after it. GNOME Clocks was the other option
-# in Debian: its alarms only run while its window exists (started in the
-# background it quits after 10 seconds), and it pulls in the geoclue location
-# service. The App Finder keywords are added under APP FINDER LAUNCHER FIX.
-install_pkg "alarm-clock-applet" "Alarm Clock (alarms and timers)"
-# The autostart entry takes effect at the next login; start it now too, so
-# alarms set before then ring. pgrep -x matches the kernel's process name,
-# which is cut to 15 characters: alarm-clock-app.
-if [ -n "${DISPLAY:-}" ] && command -v alarm-clock-applet > /dev/null \
-    && ! pgrep -u "$USER" -x alarm-clock-app > /dev/null; then
-    setsid -f alarm-clock-applet --hidden >>"$LOG_FILE" 2>&1 < /dev/null || true
-fi
+# Alarms, timers, a stopwatch and world clocks. The package's own launcher
+# lists "alarm", "timer" and "stopwatch" as search keywords, so the App Finder
+# finds it as is. Its alarms ring only while its window is open (minimised is
+# fine): closed, it quits soon after, and nothing starts it at login.
+install_pkg "gnome-clocks" "GNOME Clocks (alarms, timers, stopwatch, world clocks)"
+
+# v1.14.0 installed Alarm Clock (alarm-clock-applet) for this; GNOME Clocks
+# replaced it. The per-user launcher that version wrote, which carries the
+# managed marker, is the record that this script set it up: only then is
+# the package removed. A copy the user installed themselves has no such
+# launcher and is left alone. Returns 0 when it removed Alarm Clock, 1 when
+# there was nothing of ours to remove, and 2 when the removal failed (the
+# launcher is kept, so the next run tries again).
+retire_alarm_clock() {
+    local launcher=$1
+    grep -qs "debian-intel-macbook-post-install" "$launcher" || return 1
+    sudo apt-get purge -y alarm-clock-applet >>"$LOG_FILE" 2>&1 || return 2
+    rm -f "$launcher" || return 2
+    return 0
+}
+retire_alarm_clock "$ACTUAL_HOME/.local/share/applications/alarm-clock-applet.desktop"
+case $? in
+    0) print_ok "Alarm Clock removed (GNOME Clocks replaces it)" ;;
+    2) print_fail "Alarm Clock removal"; FAILED+=("Alarm Clock removal") ;;
+esac
 
 print_info "Configuring screenshot shortcut..."
 xfconf_set -c xfce4-keyboard-shortcuts -p '/commands/custom/<Primary><Alt>s' -s 'flameshot gui' --create -t string
@@ -2526,20 +2537,6 @@ terminal_launcher() {
 if managed_launcher terminal_launcher /usr/share/applications/xfce4-terminal.desktop \
     "$ACTUAL_HOME/.local/share/applications/xfce4-terminal.desktop" "Terminal name"; then
     print_ok "The terminal is listed as Terminal in the menu and App Finder"
-fi
-
-# Prints the package's Alarm Clock launcher with search keywords added: it
-# ships none, so the App Finder would find it under "alarm" (its name) but not
-# under "timer". Built from the package's own file every run, like the
-# terminal launcher above.
-alarm_clock_launcher() {
-    sed -e '1a # Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.' \
-        -e '/^Keywords=/d' \
-        -e '/^\[Desktop Entry\]$/a Keywords=alarm;timer;countdown;reminder;clock;wake;' "$1"
-}
-if managed_launcher alarm_clock_launcher /usr/share/applications/alarm-clock-applet.desktop \
-    "$ACTUAL_HOME/.local/share/applications/alarm-clock-applet.desktop" "Alarm Clock keywords"; then
-    print_ok "Alarm Clock shows up in App Finder for \"alarm\" and \"timer\""
 fi
 
 # An App Finder left running (F4 keeps one in the background) still shows the
