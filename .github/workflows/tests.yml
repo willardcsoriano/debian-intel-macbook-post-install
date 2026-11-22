@@ -21,9 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # The emoji picker's test reads Debian's Unicode emoji list; the launcher
-      # tests run desktop-file-validate
+      # The emoji picker's test reads Debian's Unicode emoji list
       - name: Install test dependencies
-        run: sudo apt-get update && sudo apt-get install -y unicode-data libxfce4ui-common desktop-file-utils
+        run: sudo apt-get update && sudo apt-get install -y unicode-data libxfce4ui-common
       - name: Run tests
         run: python3 -m unittest discover -s tests -v

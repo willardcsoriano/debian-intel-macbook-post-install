@@ -318,7 +318,7 @@ class SleepKeepsSessionsUnfrozen(unittest.TestCase):
 
 
 class ManagedLauncher(unittest.TestCase):
-    """managed_launcher: per-user launcher copies (Terminal, Alarm Clock)."""
+    """managed_launcher: per-user launcher copies (the Terminal name)."""
 
     GEN = ('gen() { sed "1a # Managed by debian-intel-macbook-post-install" "$1"; }\n'
            'broken() { echo partial; return 1; }\n')
