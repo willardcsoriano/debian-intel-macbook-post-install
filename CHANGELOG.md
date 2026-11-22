@@ -2,6 +2,18 @@
 
 Releases from v1.14.0 on are written here by release-please from the commit titles. Earlier releases are in the README's Version History and on the [GitHub Releases](https://github.com/willardcsoriano/debian-intel-macbook-post-install/releases) page.
 
+## [1.15.0](https://github.com/willardcsoriano/debian-intel-macbook-post-install/compare/v1.14.0...v1.15.0) (2026-11-22)
+
+
+### Features
+
+* **setup:** replace Alarm Clock with GNOME Clocks ([726a004](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/726a004d610337f8e10867319bdf964af56eb56d)), closes [#70](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/70)
+
+
+### Bug Fixes
+
+* **setup:** write the automatic updates switch instead of trusting dpkg-reconfigure ([9ff721a](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/9ff721a9f67b6508f97d527743c237b9571bbb7a)), closes [#41](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/41)
+
 ## [1.14.0](https://github.com/willardcsoriano/debian-intel-macbook-post-install/compare/v1.13.0...v1.14.0) (2026-11-20)
 
 
