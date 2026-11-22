@@ -7,6 +7,7 @@ run the command as the test user, so nothing outside that directory changes.
 """
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -387,12 +388,52 @@ class NoExistenceOnlyChecks(unittest.TestCase):
 
     def test_owned_files_go_through_ensure_file(self):
         text = setup_extract.setup_text()
-        for path in ("$BLACKLIST_FILE", "/etc/modules-load.d/broadcom.conf", "$UU_EXTRA",
+        for path in ("$BLACKLIST_FILE", "/etc/modules-load.d/broadcom.conf", "$UU_EXTRA", "$AUTO_UPGRADES",
                      "$ACPOWER_OVERRIDE_FILE", "/etc/modules-load.d/facetimehd.conf",
                      "/etc/modprobe.d/alsa-base.conf", "/etc/systemd/sleep.conf"):
             with self.subTest(path=path):
                 self.assertIn(f'ensure_file {path if path.startswith("/") else chr(34) + path + chr(34)} ', text)
                 self.assertNotRegex(text, re.escape(f'[ ! -f "{path}" ]'))
+
+
+class AutomaticUpdatesSwitchedOn(unittest.TestCase):
+    """The file that switches on apt's periodic timers is written by setup.sh
+    itself and checked by content, so a missing one is rewritten."""
+
+    def written(self):
+        text = setup_extract.setup_text()
+        path = re.search(r'(?m)^AUTO_UPGRADES="([^"]+)"$', text)
+        content = re.search(r"(?m)^AUTO_UPGRADES_CONTENT=(\$'.*')$", text)
+        self.assertIsNotNone(path)
+        self.assertIsNotNone(content)
+        # bash expands the $'...' string exactly as setup.sh does
+        r = subprocess.run(["bash", "-c", "printf '%s\\n' " + content.group(1)],
+                           capture_output=True, text=True, timeout=30)
+        return path.group(1), r.stdout
+
+    def test_both_timers_switched_on(self):
+        path, content = self.written()
+        self.assertEqual(path, "/etc/apt/apt.conf.d/20auto-upgrades")
+        self.assertEqual(content.splitlines(), ['APT::Periodic::Update-Package-Lists "1";',
+                                                'APT::Periodic::Unattended-Upgrade "1";'])
+
+    def test_not_left_to_an_unchecked_dpkg_reconfigure(self):
+        self.assertNotIn("dpkg-reconfigure -f noninteractive unattended-upgrades",
+                         setup_extract.setup_text())
+
+    def test_missing_file_is_written_and_a_second_run_changes_nothing(self):
+        path, content = self.written()
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        target = os.path.join(directory, "apt.conf.d", "20auto-upgrades")
+        script = (f"AUTO_UPGRADES={shlex.quote(target)}\n"
+                  + re.search(r"(?m)^AUTO_UPGRADES_CONTENT=.*$", setup_extract.setup_text()).group(0) + "\n"
+                  + 'ensure_file "$AUTO_UPGRADES" "$AUTO_UPGRADES_CONTENT" label; a=$?\n'
+                  + 'ensure_file "$AUTO_UPGRADES" "$AUTO_UPGRADES_CONTENT" label; echo "$a $?"')
+        _, out = run(script)
+        self.assertEqual(out.splitlines()[-1], "0 1")
+        with open(target) as f:
+            self.assertEqual(f.read(), content)
 
 
 if __name__ == "__main__":

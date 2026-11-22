@@ -483,7 +483,9 @@ script installs and changes, and why.
 - intel-microcode — CPU microcode updates for Spectre/Meltdown-class mitigations
 - unattended-upgrades — daily auto-install of Debian security patches and kernel
   updates. Extended to also cover the stable -updates pocket and the VS Code
-  Microsoft repo (third-party origins are excluded by default)
+  Microsoft repo (third-party origins are excluded by default). setup.sh
+  writes `/etc/apt/apt.conf.d/20auto-upgrades`, the file that switches the
+  daily run on, and reports a failure if it can't
 - needrestart — notifies you when a kernel or library update requires a reboot
   to take effect. No auto-reboot; you decide when to restart.
 - fwupd + fwupd-refresh.timer — UEFI and firmware updates via LVFS, refreshed
