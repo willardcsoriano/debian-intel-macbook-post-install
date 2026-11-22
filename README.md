@@ -922,7 +922,11 @@ patch, `feat` → minor, `!` → major), the changelog, and the version in the
 install links above. Merging it tags and publishes the release. GitHub
 doesn't start checks for a PR its own token opened, so close and reopen the
 release PR to run them before merging:
-`gh pr close N && gh pr reopen N && gh pr merge N --auto --merge --delete-branch`.
+`gh pr close N && gh pr reopen N && gh pr merge N --auto --rebase --delete-branch`.
+
+Pull requests are merged by rebasing, and the repository has merge commits
+turned off. A merge commit repeats the PR title in its message, and
+release-please would list every change twice.
 
 ---
 
