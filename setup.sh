@@ -699,8 +699,13 @@ install_pkg "unattended-upgrades" "unattended-upgrades (auto security patches)"
 install_pkg "needrestart" "needrestart (reboot-needed notifier)"
 install_pkg "fwupd" "fwupd (firmware updater)"
 
-# Create /etc/apt/apt.conf.d/20auto-upgrades so the apt periodic timers actually fire
-sudo dpkg-reconfigure -f noninteractive unattended-upgrades >>"$LOG_FILE" 2>&1 || true
+# The apt periodic timers download and install nothing unless this file
+# switches them on. It is written here directly, rather than through
+# dpkg-reconfigure (which can leave it unwritten without failing), so a
+# missing or changed file is rewritten and a failed write is reported.
+AUTO_UPGRADES="/etc/apt/apt.conf.d/20auto-upgrades"
+AUTO_UPGRADES_CONTENT=$'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";'
+ensure_file "$AUTO_UPGRADES" "$AUTO_UPGRADES_CONTENT" "Automatic updates switched on (daily)" || true
 
 # Debian 13's default 50unattended-upgrades covers the -security pocket and stable
 # point releases (label=Debian), but leaves the -updates pocket commented out.
