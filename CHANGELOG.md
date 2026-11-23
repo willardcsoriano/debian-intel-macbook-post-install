@@ -2,6 +2,13 @@
 
 Releases from v1.14.0 on are written here by release-please from the commit titles. Earlier releases are in the README's Version History and on the [GitHub Releases](https://github.com/willardcsoriano/debian-intel-macbook-post-install/releases) page.
 
+## [1.16.0](https://github.com/willardcsoriano/debian-intel-macbook-post-install/compare/v1.15.0...v1.16.0) (2026-11-23)
+
+
+### Features
+
+* **wifi:** add fix-wifi and the wifi-watchdog user service ([d1b6b3f](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/d1b6b3fa69237f5d7a19a340d4183b9c4dc7aada)), closes [#75](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/75)
+
 ## [1.15.0](https://github.com/willardcsoriano/debian-intel-macbook-post-install/compare/v1.14.0...v1.15.0) (2026-11-22)
 
 
