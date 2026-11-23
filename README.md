@@ -409,6 +409,13 @@ See [Automatic Security Updates](#automatic-security-updates) and
 - **WiFi or the webcam stopped working after a system upgrade.** A new
   kernel needs a reboot before the drivers run on it; reboot, then check
   both again.
+- **WiFi drops, won't connect, or is off.** Try `fix-wifi` before
+  rebooting: plain `fix-wifi` for wifi that keeps dropping, and
+  `fix-wifi --radio` when it won't connect to anything. If wifi stays stuck,
+  the wifi watchdog runs `fix-wifi --radio` by itself after about a minute.
+  If wifi is simply off, run `nmcli radio wifi on`. For a Bluetooth phone
+  tether that fails, run `fix-wifi --bluetooth`. To tell which problem it
+  is from the logs, see [Wifi Recovery](docs/wifi-recovery.md).
 - **The webcam is flaky.** The FaceTime HD driver is a community
   reverse-engineered driver, not officially supported — see
   [Known Limitations](#known-limitations).
@@ -591,6 +598,20 @@ updates — a warning with the `sudo apt full-upgrade` command to catch up later
   for. The rule refuses those requests instead, so an unexpected password
   prompt about network settings never appears. Nothing changes while
   you're using the desktop.
+- fix-wifi and wifi-watchdog — recovery without a reboot.
+  - `fix-wifi` reconnects. `fix-wifi --radio` power-cycles the radio, for
+    the Broadcom driver wedging so that it refuses every network.
+    `fix-wifi --bluetooth` power-cycles Bluetooth, for a failed phone tether.
+  - `wifi-watchdog` is a user service, enabled for every account. It runs
+    `fix-wifi --radio` when NetworkManager has been failing to connect for
+    about a minute. It ignores a device that is simply disconnected and
+    idle, and it stays out of the way while the system suspends.
+  - With the screen locked it waits for the unlock, since the radio can only
+    be toggled from the active session.
+  - Both are installed in `/usr/local/bin`. The service's log is
+    `journalctl --user -u wifi-watchdog`. To turn it off for your account,
+    run `systemctl --user mask --now wifi-watchdog`.
+  - Details: [Wifi Recovery](docs/wifi-recovery.md).
 
 ### MacBook Keyboard Fixes
 This is one of the most important parts of the script. Out of the box on

@@ -1043,6 +1043,350 @@ polkit.addRule(function(action, subject) {
 EOF
 print_ok "NetworkManager changes refused while the session is locked or in the background"
 
+# Wifi recovery tools (docs/wifi-recovery.md). fix-wifi forces a fresh
+# reconnect, power-cycles the radio (--radio) or Bluetooth (--bluetooth),
+# instead of a reboot. wifi-watchdog is a user service that runs
+# fix-wifi --radio when the wl driver wedges and refuses every association.
+# The unit goes in /etc/systemd/user and is enabled for every user (system
+# accounts excluded by the unit itself); a unit of the same name in a user's
+# ~/.config/systemd/user takes precedence over it.
+FIX_WIFI_BIN="/usr/local/bin/fix-wifi"
+WIFI_WATCHDOG_BIN="/usr/local/bin/wifi-watchdog"
+WIFI_WATCHDOG_UNIT="/etc/systemd/user/wifi-watchdog.service"
+FIX_WIFI_CONTENT=$(cat << 'FIXWIFI'
+#!/usr/bin/env bash
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+set -euo pipefail
+
+# Wifi and Bluetooth recovery without a reboot. When wifi goes flaky,
+# NetworkManager and wpa_supplicant rarely crash: they keep reconnecting, to
+# the wrong thing, over and over. A reboot only helps because it forces one
+# fresh association; these force the same thing directly. Which one to use
+# is in the README, "When Something Goes Wrong".
+#
+#   fix-wifi              Disconnect and reconnect the wifi device. For wifi
+#                         that is connected but flaky: repeated drops, or
+#                         stuck roaming between access points of one network.
+#   fix-wifi --radio      Power-cycle the wifi radio (nmcli radio wifi off/on).
+#                         For when the driver itself refuses to associate:
+#                         wpa_supplicant logs "Association request to the
+#                         driver failed" against every network, which a
+#                         reconnect cannot reach. wifi-watchdog runs this
+#                         automatically.
+#   fix-wifi --bluetooth  Power-cycle Bluetooth. For a phone tether (Bluetooth
+#                         NAP) that fails with "Input/output error".
+
+fix_wifi() {
+    local dev
+    dev="$(nmcli -t -f DEVICE,TYPE device status | awk -F: '$2=="wifi"{print $1; exit}')"
+    if [ -z "$dev" ]; then
+        echo "No wifi device found." >&2
+        exit 1
+    fi
+    echo "Reconnecting $dev..."
+    nmcli device disconnect "$dev" || true
+    nmcli device connect "$dev"
+    echo "Done."
+}
+
+fix_radio() {
+    echo "Power-cycling wifi radio..."
+    nmcli radio wifi off || true
+    sleep 2
+
+    # Turning the radio back on can be refused (polkit refuses it while the
+    # session is inactive, for one), which would leave wifi off with no sign
+    # of why. So check that it took, retry, and fail loudly if it never does.
+    # Every nmcli call is guarded so a refusal falls through to the retry
+    # instead of ending the script under set -e.
+    local attempt
+    for attempt in 1 2 3; do
+        nmcli radio wifi on || true
+        sleep 1
+        if [ "$(nmcli radio wifi)" = "enabled" ]; then
+            echo "Done."
+            return 0
+        fi
+        echo "Re-enable attempt $attempt did not take effect, retrying..." >&2
+        sleep 2
+    done
+    echo "Radio did not re-enable after 3 attempts -- it may still be off. Run: nmcli radio wifi on" >&2
+    return 1
+}
+
+fix_bluetooth() {
+    if ! command -v bluetoothctl > /dev/null 2>&1; then
+        echo "bluetoothctl not found (install the bluez package)." >&2
+        exit 1
+    fi
+    echo "Power-cycling Bluetooth..."
+    bluetoothctl power off
+    sleep 1
+    bluetoothctl power on
+    echo "Done."
+}
+
+case "${1:-}" in
+    --radio) fix_radio ;;
+    --bluetooth) fix_bluetooth ;;
+    "") fix_wifi ;;
+    *)
+        echo "Usage: fix-wifi [--radio | --bluetooth]" >&2
+        exit 2
+        ;;
+esac
+FIXWIFI
+)
+WIFI_WATCHDOG_CONTENT=$(cat << 'WIFIWATCHDOG'
+#!/usr/bin/env bash
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+set -uo pipefail
+
+# Wifi driver-lockup watchdog, run by the wifi-watchdog systemd user service.
+#
+# The Broadcom wl driver can wedge so that it refuses every association:
+# wpa_supplicant logs "Association request to the driver failed" on every
+# attempt, against every network. NetworkManager keeps retrying, but a
+# reconnect works one layer above the fault and never clears it; before this
+# watchdog, only a reboot did. Power-cycling the radio (fix-wifi --radio)
+# does clear it.
+#
+# So: while NetworkManager is trying to connect and keeps failing for about
+# a minute, run fix-wifi --radio. A device sitting idle and disconnected is
+# not a lockup (no saved network in range, or wifi unused next to a cable),
+# so idle time is never counted. No sudo: toggling the radio is a normal
+# NetworkManager permission for the user at the active session, and is
+# refused while the screen is locked; then the reset waits for the unlock
+# (see radio_toggle_authorized).
+#
+# It never escalates past the radio reset (no driver reload, no reboot). If
+# the reset does not help it notifies, waits out the cooldown and tries once
+# more, so a network that is simply broken is not fought in a tight loop.
+# Its log: journalctl --user -u wifi-watchdog
+
+POLL_INTERVAL_SECONDS=10
+FAILURE_THRESHOLD=6      # failing polls (~60s of trying) before acting
+COOLDOWN_SECONDS=300     # minimum gap between radio resets
+WAKE_GAP_SECONDS=30      # a gap this long between polls means the loop was frozen by a sleep
+
+wifi_device() {
+    nmcli -t -f DEVICE,TYPE device status 2>/dev/null \
+        | awk -F: '$2=="wifi"{print $1; exit}'
+}
+
+# NetworkManager's device state number: 100 is connected, 40-90 are the
+# steps of a connection attempt, 120 is a failed one, and 10-30 and 110 are
+# idle (unmanaged, unavailable, disconnected, deactivating).
+device_state() {
+    nmcli -t -f GENERAL.STATE device show "$1" 2>/dev/null | cut -d: -f2 | cut -d' ' -f1
+}
+
+radio_enabled() {
+    [ "$(nmcli radio wifi 2>/dev/null)" = "enabled" ]
+}
+
+# NetworkManager's own answer to "may this session toggle the radio now?".
+# enable-disable-wifi is allowed for the active session only, so it reads
+# "no" while the screen is locked (setup.sh also refuses NetworkManager
+# changes from inactive sessions outright). Asking first means a reset is
+# never started that polkit would refuse halfway, after "off" and before
+# "on", leaving the radio off. "auth" counts as no too: a background service
+# has nobody to answer a password prompt.
+radio_toggle_authorized() {
+    nmcli -t -f PERMISSION,VALUE general permissions 2>/dev/null \
+        | grep -qx 'org.freedesktop.NetworkManager.enable-disable-wifi:yes'
+}
+
+# True while the system is going to sleep or is asleep: logind has announced
+# a suspend (PreparingForSleep), or NetworkManager has put itself to sleep
+# for one. NetworkManager takes wifi down on purpose before every sleep, so
+# that is not a lockup, and toggling the radio mid-suspend only adds noise.
+# A suspend that keeps failing and retrying takes NetworkManager to sleep and
+# back every minute or two; without this the watchdog reset the radio inside
+# that loop. A failed query reads as "not sleeping", so a broken bus cannot
+# switch the watchdog off for good.
+system_sleeping() {
+    [ "$(nmcli -t -f STATE general 2>/dev/null)" = "asleep" ] && return 0
+    [ "$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+        org.freedesktop.login1.Manager PreparingForSleep 2>/dev/null)" = "b true" ]
+}
+
+now_seconds() { date +%s; }
+
+# setup.sh installs both scripts in /usr/local/bin, which is on the systemd
+# user manager's PATH. Looking next to this script first keeps a copy
+# installed elsewhere (~/.local/bin, say, which that PATH lacks) paired with
+# its own fix-wifi.
+find_fix_wifi() {
+    local sibling
+    sibling="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/fix-wifi"
+    if [ -x "$sibling" ]; then
+        printf '%s\n' "$sibling"
+    else
+        command -v fix-wifi
+    fi
+}
+
+notify() {
+    if command -v notify-send > /dev/null 2>&1; then
+        notify-send -u normal "Wifi auto-recovery" "$1" || true
+    fi
+}
+
+fail_count=0
+idle_count=0
+last_trigger=0
+last_poll=0
+deferred=false
+
+start_over() {
+    fail_count=0
+    idle_count=0
+    deferred=false
+}
+
+poll_once() {
+    local dev state now stuck_for fix_wifi
+
+    # A sleep freezes this loop, so a long gap since the last poll means the
+    # system has just woken. Wifi being down across the sleep says nothing
+    # about the driver: start counting again from this poll.
+    now=$(now_seconds)
+    if [ "$last_poll" -gt 0 ] && [ $((now - last_poll)) -gt "$WAKE_GAP_SECONDS" ]; then
+        start_over
+    fi
+    last_poll=$now
+
+    if system_sleeping; then
+        start_over
+        return 0
+    fi
+
+    dev="$(wifi_device)"
+    if [ -z "$dev" ] || ! radio_enabled; then
+        start_over
+        return 0
+    fi
+
+    state="$(device_state "$dev")"
+    case "$state" in
+        100)
+            start_over
+            return 0
+            ;;
+        40 | 50 | 60 | 70 | 80 | 90 | 120)
+            fail_count=$((fail_count + 1))
+            idle_count=0
+            ;;
+        *)
+            # Idle. A moment of it between two failed attempts is normal, so
+            # it doesn't clear the count; a minute of it means NetworkManager
+            # has stopped trying, and the count starts again.
+            idle_count=$((idle_count + 1))
+            if [ "$idle_count" -ge "$FAILURE_THRESHOLD" ]; then
+                start_over
+            fi
+            return 0
+            ;;
+    esac
+
+    if [ "$fail_count" -lt "$FAILURE_THRESHOLD" ] || [ $((now - last_trigger)) -lt "$COOLDOWN_SECONDS" ]; then
+        return 0
+    fi
+    stuck_for=$((fail_count * POLL_INTERVAL_SECONDS))
+
+    # Keep fail_count while deferred, so the reset runs on the first poll
+    # after the session becomes active again if wifi is still failing.
+    if ! radio_toggle_authorized; then
+        if ! $deferred; then
+            echo "wifi-watchdog: $dev failing to connect for ~${stuck_for}s, but this session may not toggle the radio right now (screen locked?) -- deferring the reset"
+            deferred=true
+        fi
+        return 0
+    fi
+    deferred=false
+    last_trigger=$now
+    fail_count=0
+
+    fix_wifi="${FIX_WIFI:-$(find_fix_wifi)}"
+    if [ -z "$fix_wifi" ]; then
+        echo "wifi-watchdog: $dev failing to connect for ~${stuck_for}s, but fix-wifi is not installed next to wifi-watchdog or on PATH" >&2
+        notify "$dev looked wedged for ~${stuck_for}s -- fix-wifi is missing, re-run setup.sh."
+        return 0
+    fi
+
+    echo "wifi-watchdog: $dev failing to connect for ~${stuck_for}s, running radio reset..."
+    if "$fix_wifi" --radio; then
+        notify "$dev looked wedged for ~${stuck_for}s -- ran a radio reset (nmcli radio wifi off/on)."
+    else
+        notify "$dev looked wedged for ~${stuck_for}s -- radio reset FAILED, wifi may still be off. Run: nmcli radio wifi on"
+    fi
+}
+
+main() {
+    while true; do
+        sleep "$POLL_INTERVAL_SECONDS"
+        poll_once
+    done
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main
+fi
+WIFIWATCHDOG
+)
+WIFI_WATCHDOG_UNIT_CONTENT=$(cat << 'WIFIWATCHDOGUNIT'
+# Managed by debian-intel-macbook-post-install -- re-running setup.sh rewrites it.
+[Unit]
+Description=Wifi driver-lockup watchdog (automatic radio reset)
+Documentation=https://github.com/willardcsoriano/debian-intel-macbook-post-install/blob/master/docs/wifi-recovery.md
+# Not for system accounts such as the login screen's: they have no session
+# that may toggle the radio.
+ConditionUser=!@system
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wifi-watchdog
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+WIFIWATCHDOGUNIT
+)
+wifi_tools_changed=false
+ensure_file "$FIX_WIFI_BIN" "$FIX_WIFI_CONTENT" "fix-wifi installed" && wifi_tools_changed=true
+ensure_file "$WIFI_WATCHDOG_BIN" "$WIFI_WATCHDOG_CONTENT" "wifi-watchdog installed" && wifi_tools_changed=true
+ensure_file "$WIFI_WATCHDOG_UNIT" "$WIFI_WATCHDOG_UNIT_CONTENT" "wifi-watchdog user service installed" && wifi_tools_changed=true
+sudo chmod 755 "$FIX_WIFI_BIN" "$WIFI_WATCHDOG_BIN" 2>>"$LOG_FILE" || true
+if sudo systemctl --global enable wifi-watchdog.service >>"$LOG_FILE" 2>&1; then
+    print_ok "wifi-watchdog starts at every login"
+else
+    print_fail "wifi-watchdog login start"
+    FAILED+=("wifi-watchdog login start")
+fi
+# Run it now too: restart after a change so the new script is the one
+# running, start it if it isn't running yet, and otherwise leave it be.
+# A user who masked it (docs/wifi-recovery.md) keeps it off.
+if [ -n "${DISPLAY:-}" ] && systemctl --user daemon-reload 2>>"$LOG_FILE"; then
+    if [ "$(systemctl --user is-enabled wifi-watchdog.service 2>/dev/null)" = "masked" ]; then
+        print_skip "wifi-watchdog (masked for this account)"
+    else
+        if $wifi_tools_changed; then
+            systemctl --user restart wifi-watchdog.service >>"$LOG_FILE" 2>&1
+        elif ! systemctl --user is-active --quiet wifi-watchdog.service; then
+            systemctl --user start wifi-watchdog.service >>"$LOG_FILE" 2>&1
+        fi
+        if systemctl --user is-active --quiet wifi-watchdog.service; then
+            print_ok "wifi-watchdog running"
+        else
+            print_warning "wifi-watchdog didn't start -- see: systemctl --user status wifi-watchdog"
+        fi
+    fi
+else
+    print_info "wifi-watchdog starts at your next login"
+fi
+
 # ─────────────────────────────────────────────
 # KEYBOARD
 # ─────────────────────────────────────────────
