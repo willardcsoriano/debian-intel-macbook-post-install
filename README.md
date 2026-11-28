@@ -815,7 +815,11 @@ launcher to pass a file argument. When you launch those apps from the XFCE
 App Finder with no file selected they silently fail. This step writes
 cleaned copies of affected launchers into `~/.local/share/applications`
 (per-user overrides — system files are left untouched) so every app starts
-cleanly from the App Finder.
+cleanly from the App Finder. Each copy is marked as the script's own and
+rebuilt from the package's launcher on every run, so it follows package
+updates, and it is removed once the app is uninstalled. A launcher in that
+folder the script didn't write (your own, or one another installer put
+there) is left as it is.
 
 It also lists xfce4-terminal as **Terminal** (the package calls it "Xfce
 Terminal"), through a per-user copy of the package's launcher that each run
