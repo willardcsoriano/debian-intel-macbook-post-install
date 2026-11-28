@@ -93,6 +93,35 @@ class FixDesktopLaunchers(unittest.TestCase):
         self.assertIn("ok: Fixed 1", self.fix())
         self.assertEqual(self.read("viewer.desktop"), VIEWER_FIXED)
 
+    def test_adopts_an_old_unmarked_copy_after_the_package_changed(self):
+        # The common upgrade case: the copy was written from an older package
+        # launcher. Its Exec line still matches the package's, stripped.
+        self.put(self.system, "viewer.desktop", VIEWER.replace("Name=Viewer", "Name=Viewer 2"))
+        self.put(self.local, "viewer.desktop", VIEWER.replace(" %F", ""))
+        self.assertIn("ok: Fixed 1", self.fix())
+        self.assertIn("Name=Viewer 2", self.read("viewer.desktop"))
+        self.assertIn(MARKER, self.read("viewer.desktop"))
+
+    def test_an_unmarked_copy_with_a_different_command_is_not_adopted(self):
+        mine = VIEWER.replace("Exec=viewer %F", "Exec=viewer --safe-mode")
+        self.put(self.system, "viewer.desktop", VIEWER)
+        self.put(self.local, "viewer.desktop", mine)
+        self.assertIn("info: Left 1 launcher(s)", self.fix())
+        self.assertEqual(self.read("viewer.desktop"), mine)
+
+    def test_a_directory_with_a_launcher_name_is_left_alone(self):
+        self.put(self.system, "viewer.desktop", VIEWER)
+        os.makedirs(os.path.join(self.local, "viewer.desktop"))
+        out = self.fix()
+        self.assertIn("info: Left 1 launcher(s)", out)
+        self.assertNotIn("ok:", out)
+        self.assertEqual(os.listdir(os.path.join(self.local, "viewer.desktop")), [])
+
+    def test_only_kept_launchers_print_no_already_fixed_line(self):
+        self.put(self.system, "viewer.desktop", VIEWER)
+        self.put(self.local, "viewer.desktop", VIEWER.replace("Name=Viewer", "Name=My Viewer"))
+        self.assertNotIn("skip:", self.fix())
+
     def test_leaves_a_launcher_it_did_not_write(self):
         mine = VIEWER.replace("Name=Viewer", "Name=My Viewer")
         self.put(self.system, "viewer.desktop", VIEWER)
