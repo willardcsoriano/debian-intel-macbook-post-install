@@ -2,6 +2,17 @@
 
 Releases from v1.14.0 on are written here by release-please from the commit titles. Earlier releases are in the README's Version History and on the [GitHub Releases](https://github.com/willardcsoriano/debian-intel-macbook-post-install/releases) page.
 
+## [1.16.1](https://github.com/willardcsoriano/debian-intel-macbook-post-install/compare/v1.16.0...v1.16.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **power:** run sleep hooks from units systemd actually starts ([adc75a6](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/adc75a6a46fa313b2e86f95b111ab7d25a2de46a)), closes [#78](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/78)
+* **setup:** adopt old launcher copies after their package changed ([40eadd5](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/40eadd50520d41ab9cdaf2860f292eefdc2854cb)), closes [#79](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/79)
+* **setup:** keep App Finder launcher copies in step with their packages ([ad6de6f](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/ad6de6fda2ee300826341ac15333a062a1c5d910)), closes [#79](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/79)
+* **setup:** stop rewriting power and polkit config on every run ([9a067da](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/9a067da91423db15c2c375e3b7274ccf6cb7c333)), closes [#80](https://github.com/willardcsoriano/debian-intel-macbook-post-install/issues/80)
+* **setup:** word skips as done and count already-installed packages ([03c38c1](https://github.com/willardcsoriano/debian-intel-macbook-post-install/commit/03c38c158d4137d34c32133c7a699a0a8e7af641))
+
 ## [1.16.0](https://github.com/willardcsoriano/debian-intel-macbook-post-install/compare/v1.15.0...v1.16.0) (2026-11-23)
 
 
