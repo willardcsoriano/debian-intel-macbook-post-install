@@ -317,6 +317,29 @@ class SleepKeepsSessionsUnfrozen(unittest.TestCase):
                       setup_extract.setup_text())
 
 
+class EnsureFileReadsAsRoot(unittest.TestCase):
+    """ensure_file compares through sudo, so a file only root can read (the
+    polkit rules directory is root:polkitd 0750) is still recognised as done
+    instead of being rewritten on every run."""
+
+    def test_comparison_goes_through_sudo(self):
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        path = os.path.join(directory, "rule")
+        with open(path, "w") as f:
+            f.write("same\n")
+        calls = os.path.join(directory, "calls")
+        # Only a cat run through this sudo can read the file, as with a
+        # root-only directory; without sudo it reads as missing.
+        script = (f'CALLS={calls}\n'
+                  'sudo() { echo "$*" >> "$CALLS"; IN_SUDO=1 "$@"; }\n'
+                  'cat() { case "$*" in *rule*) [ -n "${IN_SUDO:-}" ] || return 1 ;; esac; command cat "$@"; }\n')
+        rc, out = run(script + 'ensure_file "$1" same label; echo "rc=$?"', path)
+        self.assertIn("rc=1", out)
+        with open(calls) as f:
+            self.assertIn(f"cat {path}", f.read())
+
+
 class ManagedLauncher(unittest.TestCase):
     """managed_launcher: per-user launcher copies (the Terminal name)."""
 
@@ -390,10 +413,41 @@ class NoExistenceOnlyChecks(unittest.TestCase):
         text = setup_extract.setup_text()
         for path in ("$BLACKLIST_FILE", "/etc/modules-load.d/broadcom.conf", "$UU_EXTRA", "$AUTO_UPGRADES",
                      "$ACPOWER_OVERRIDE_FILE", "/etc/modules-load.d/facetimehd.conf",
-                     "/etc/modprobe.d/alsa-base.conf", "/etc/systemd/sleep.conf"):
+                     "/etc/modprobe.d/alsa-base.conf", "/etc/systemd/sleep.conf",
+                     "/etc/polkit-1/rules.d/50-networkmanager-inactive-session.rules",
+                     "/etc/systemd/logind.conf.d/10-lid.conf",
+                     "/etc/polkit-1/rules.d/50-disable-hibernate.rules"):
             with self.subTest(path=path):
                 self.assertIn(f'ensure_file {path if path.startswith("/") else chr(34) + path + chr(34)} ', text)
                 self.assertNotRegex(text, re.escape(f'[ ! -f "{path}" ]'))
+
+
+    def test_owned_files_are_not_rewritten_unchecked(self):
+        text = setup_extract.setup_text()
+        for path in ("/etc/polkit-1/rules.d/50-networkmanager-inactive-session.rules",
+                     "/etc/systemd/logind.conf.d/10-lid.conf",
+                     "/etc/polkit-1/rules.d/50-disable-hibernate.rules"):
+            with self.subTest(path=path):
+                self.assertNotIn(f"sudo tee {path}", text)
+
+
+
+class RebootOnlyWhenNeeded(unittest.TestCase):
+    """The run asks for a reboot exactly when a change needs one."""
+
+    def test_lid_setting_flags_a_reboot_only_when_it_changed(self):
+        self.assertRegex(setup_extract.setup_text(),
+                         r'if ensure_file /etc/systemd/logind\.conf\.d/10-lid\.conf "\$LOGIND_LID_CONF" "[^"]*"; then\n'
+                         r'\s+REBOOT_REQUIRED=true\n')
+
+    def test_no_unconditional_after_reboot_claims(self):
+        # Every success line that promises an effect "after reboot" sits right
+        # after the change that sets REBOOT_REQUIRED.
+        lines = setup_extract.setup_text().split("\n")
+        for i, line in enumerate(lines):
+            if re.search(r'print_ok ".*after (a )?reboot', line):
+                with self.subTest(line=line.strip()):
+                    self.assertTrue(any("REBOOT_REQUIRED=true" in l for l in lines[max(0, i - 3):i + 3]))
 
 
 class AutomaticUpdatesSwitchedOn(unittest.TestCase):
