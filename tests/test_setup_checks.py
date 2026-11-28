@@ -23,7 +23,9 @@ sudo() { "$@"; }
 print_ok()   { echo "OK: $1"; }
 print_skip() { echo "SKIP: $1"; }
 print_fail() { echo "FAIL: $1"; }
+print_info() { echo "INFO: $1"; }
 FAILED=()
+LOG_FILE=/dev/null
 '''
 
 
@@ -40,7 +42,8 @@ def function(name):
 def run(script, *args):
     """Run setup.sh functions plus script; returns (rc, stdout)."""
     code = PRELUDE + "".join(function(f) for f in ("ensure_file", "vscode_source_ok", "grub_has_s2idle", "upower_time_policy",
-                                                  "sleep_keeps_sessions_unfrozen", "managed_launcher"))
+                                                  "sleep_keeps_sessions_unfrozen", "managed_launcher",
+                                                  "install_sleep_action"))
     r = subprocess.run(["bash", "-c", code + script, "_", *args],
                        capture_output=True, text=True, timeout=60)
     return r.returncode, r.stdout
@@ -430,6 +433,136 @@ class NoExistenceOnlyChecks(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertNotIn(f"sudo tee {path}", text)
 
+
+
+class InstallSleepAction(unittest.TestCase):
+    """install_sleep_action: sleep hooks as units tied to sleep.target.
+    systemd 257 runs hook scripts only from /usr/lib/systemd/system-sleep, so
+    the old /etc/systemd/system-sleep hooks never ran."""
+
+    SCRIPT = '#!/bin/sh\necho "$1" >> "$(dirname "$0")/ran"'
+    # $T is the test directory; the stub systemctl records calls there and
+    # tracks "enabled" as a file.
+    STUB = r"""
+SLEEP_ACTION_DIR="$T/sbin" SLEEP_UNIT_DIR="$T/units" LEGACY_SLEEP_HOOK_DIR="$T/system-sleep"
+systemctl() {
+    echo "systemctl $*" >> "$T/calls"
+    case "$1" in
+        is-enabled) [ -f "$T/enabled" ] ;;
+        enable) [ -z "${ENABLE_FAILS:-}" ] && touch "$T/enabled" ;;
+    esac
+}
+"""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.legacy = os.path.join(self.dir, "system-sleep", "act")
+
+    def apply(self, env=""):
+        return run(f'T="$1"; {env}' + self.STUB +
+                   'install_sleep_action act "$2" "Label"; echo "rc=$? failed=${#FAILED[@]}"',
+                   self.dir, self.SCRIPT)[1]
+
+    def calls(self):
+        try:
+            with open(os.path.join(self.dir, "calls")) as f:
+                return f.read()
+        except FileNotFoundError:
+            return ""
+
+    def unit(self):
+        with open(os.path.join(self.dir, "units", "act.service")) as f:
+            return f.read()
+
+    def test_first_run_installs_enables_and_does_not_start(self):
+        out = self.apply()
+        self.assertIn("rc=0 failed=0", out)
+        script = os.path.join(self.dir, "sbin", "act")
+        self.assertTrue(os.access(script, os.X_OK))
+        unit = self.unit()
+        for line in ("Before=sleep.target", "StopWhenUnneeded=yes", "Type=oneshot", "RemainAfterExit=yes",
+                     f"ExecStart={script} pre", f"ExecStop={script} post", "WantedBy=sleep.target"):
+            self.assertIn(line + "\n", unit)
+        calls = self.calls()
+        self.assertIn("systemctl daemon-reload", calls)
+        self.assertIn("systemctl enable act.service", calls)
+        self.assertNotIn("--now", calls)
+        self.assertNotIn("start", calls)
+
+    def test_rerun_changes_nothing(self):
+        self.apply()
+        open(os.path.join(self.dir, "calls"), "w").close()
+        out = self.apply()
+        self.assertIn("rc=0 failed=0", out)
+        self.assertNotIn("OK:", out)
+        self.assertEqual(self.calls(), "systemctl is-enabled --quiet act.service\n")
+
+    def test_lost_exec_bit_is_restored(self):
+        self.apply()
+        script = os.path.join(self.dir, "sbin", "act")
+        os.chmod(script, 0o644)
+        self.apply()
+        self.assertTrue(os.access(script, os.X_OK))
+
+    def test_old_hook_that_is_still_ours_is_removed(self):
+        os.makedirs(os.path.dirname(self.legacy))
+        with open(self.legacy, "w") as f:
+            f.write(self.SCRIPT + "\n")
+        out = self.apply()
+        self.assertFalse(os.path.exists(self.legacy))
+        self.assertIn("OK: Removed the unused old hook", out)
+
+    def test_old_hook_someone_changed_is_left(self):
+        os.makedirs(os.path.dirname(self.legacy))
+        with open(self.legacy, "w") as f:
+            f.write("#!/bin/sh\n# edited\n")
+        out = self.apply()
+        self.assertTrue(os.path.exists(self.legacy))
+        self.assertIn("INFO: Left", out)
+        self.assertIn("rc=0 failed=0", out)
+
+    def test_failed_enable_is_a_failure_and_retried_next_run(self):
+        out = self.apply("ENABLE_FAILS=1; ")
+        self.assertIn("FAIL: Label (enabling act.service)", out)
+        self.assertIn("rc=2 failed=1", out)
+        out = self.apply()
+        self.assertIn("rc=0 failed=0", out)
+        self.assertIn("systemctl enable act.service", self.calls())
+
+    def test_failed_script_write_stops_before_the_unit(self):
+        os.makedirs(os.path.join(self.dir, "sbin"))
+        os.chmod(os.path.join(self.dir, "sbin"), 0o555)
+        self.addCleanup(os.chmod, os.path.join(self.dir, "sbin"), 0o755)
+        if os.geteuid() == 0:
+            self.skipTest("root can write a read-only directory")
+        out = self.apply()
+        self.assertIn("rc=2 failed=1", out)
+        self.assertFalse(os.path.exists(os.path.join(self.dir, "units", "act.service")))
+
+    @unittest.skipUnless(shutil.which("systemd-analyze"), "needs systemd-analyze")
+    def test_unit_passes_systemd_analyze_verify(self):
+        self.apply()
+        r = subprocess.run(["systemd-analyze", "verify", os.path.join(self.dir, "units", "act.service")],
+                           capture_output=True, text=True, timeout=60)
+        own = [l for l in r.stderr.splitlines() if "act.service" in l]
+        self.assertEqual(own, [], r.stderr)
+
+    def test_the_unit_runs_the_script_with_pre_and_post(self):
+        """Run ExecStart and ExecStop exactly as written in the unit."""
+        self.apply()
+        for key in ("ExecStart=", "ExecStop="):
+            cmd = next(l for l in self.unit().splitlines() if l.startswith(key))[len(key):]
+            subprocess.run(shlex.split(cmd), check=True, timeout=30)
+        with open(os.path.join(self.dir, "sbin", "ran")) as f:
+            self.assertEqual(f.read(), "pre\npost\n")
+
+    def test_setup_never_writes_into_the_unread_hook_directory(self):
+        text = setup_extract.setup_text()
+        self.assertNotRegex(text, r"(ensure_file|tee|cp|install) +\S*/etc/systemd/system-sleep/")
+        for name, var in (("touchpad-resume", "TOUCHPAD_RESUME_HOOK"), ("kbd-backlight-suspend", "KBD_SUSPEND_HOOK")):
+            with self.subTest(name=name):
+                self.assertIn(f'install_sleep_action {name} "${var}" ', text)
 
 
 class RebootOnlyWhenNeeded(unittest.TestCase):
