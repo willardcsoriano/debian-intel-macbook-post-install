@@ -289,33 +289,84 @@ xfconf_set() {
     xfconf-query "$@" 2>>"$LOG_FILE" || true
 }
 
+# Per-user copies of the system launchers whose Exec line asks for a file
+# (%F, %U ...): started from the App Finder with no file, such apps fail
+# silently, so the copy drops the placeholder. Each copy carries the marker
+# below and is rewritten from the package's file every run, so it follows
+# package updates, and removed when the package's launcher is gone or no
+# longer needs it. A launcher in that directory that this script did not
+# write is left as it is (counted, not touched): the user's own, or one an
+# installer put there, possibly not even writable.
+LAUNCHER_FIX_MARKER="# Managed by debian-intel-macbook-post-install (App Finder fix) -- re-running setup.sh rewrites it."
 fix_desktop_launchers() {
-    local apps_dir="/usr/share/applications"
-    local local_dir="$ACTUAL_HOME/.local/share/applications"
-    local fixed=0
-    mkdir -p "$local_dir"
-
-    for desktop_file in "$apps_dir"/*.desktop; do
-        local app_name
-        app_name=$(basename "$desktop_file")
-
-        if [ -f "$local_dir/$app_name" ] && ! grep -qE "Exec=.*%[FfUu]" "$local_dir/$app_name"; then
+    local apps_dir=$1 local_dir=$2
+    local fixed=0 current=0 kept=0 failed=0 removed=0
+    local src name dest want
+    if ! mkdir -p "$local_dir"; then
+        print_fail "App launcher fix (could not create $local_dir)"
+        FAILED+=("App launcher fix")
+        return
+    fi
+    for src in "$apps_dir"/*.desktop; do
+        if [ ! -f "$src" ] || ! grep -qE '^Exec=.*%[FfUu]' "$src" 2>/dev/null; then
             continue
         fi
-
-        if ! grep -qE "Exec=.*%[FfUu]" "$desktop_file"; then
+        name=${src##*/}
+        dest="$local_dir/$name"
+        want=$(sed -e "1a $LAUNCHER_FIX_MARKER" -e 's/ *%[FfUu]//g' "$src")
+        if [ -f "$dest" ]; then
+            if [ "$(cat "$dest" 2>/dev/null)" = "$want" ]; then
+                current=$((current + 1))
+                continue
+            fi
+            # Ours (marked), or the unmarked copy older versions wrote
+            # (the package's file with the placeholder removed): rewrite.
+            # Anything else is not ours.
+            if ! grep -qxF "$LAUNCHER_FIX_MARKER" "$dest" 2>/dev/null \
+                && [ "$(cat "$dest" 2>/dev/null)" != "$(sed 's/ *%[FfUu]//g' "$src")" ]; then
+                kept=$((kept + 1))
+                continue
+            fi
+        fi
+        # The braces: a failed redirection is reported by the shell itself,
+        # before a 2>/dev/null on the same command applies.
+        if { printf '%s\n' "$want" > "$dest.tmp"; } 2>/dev/null && mv -f "$dest.tmp" "$dest" 2>/dev/null; then
+            fixed=$((fixed + 1))
+        else
+            rm -f "$dest.tmp"
+            failed=$((failed + 1))
+        fi
+    done
+    # A copy whose package launcher is gone, or no longer asks for a file,
+    # would keep a stale entry in the menu: remove it.
+    for dest in "$local_dir"/*.desktop; do
+        if [ ! -f "$dest" ] || ! grep -qxF "$LAUNCHER_FIX_MARKER" "$dest" 2>/dev/null; then
             continue
         fi
-
-        sed 's/ *%[FfUu]//g' "$desktop_file" > "$local_dir/$app_name"
-        ((fixed++))
+        src="$apps_dir/${dest##*/}"
+        if [ ! -f "$src" ] || ! grep -qE '^Exec=.*%[FfUu]' "$src"; then
+            rm -f "$dest" 2>/dev/null && removed=$((removed + 1))
+        fi
     done
 
+    if [ $((fixed + removed)) -gt 0 ]; then
+        update-desktop-database "$local_dir" 2>/dev/null || true
+    fi
     if [ "$fixed" -gt 0 ]; then
-        update-desktop-database "$local_dir"
         print_ok "Fixed $fixed app launcher(s) for XFCE App Finder"
-    else
-        print_skip "App launcher fix — all already clean"
+    fi
+    if [ "$removed" -gt 0 ]; then
+        print_ok "Removed $removed launcher fix(es) no longer needed"
+    fi
+    if [ "$kept" -gt 0 ]; then
+        print_info "Left $kept launcher(s) in $local_dir as they are (not made by this script)"
+    fi
+    if [ "$failed" -gt 0 ]; then
+        print_fail "App launcher fix ($failed could not be written in $local_dir)"
+        FAILED+=("App launcher fix")
+    fi
+    if [ $((fixed + removed + failed)) -eq 0 ]; then
+        print_skip "App launcher fix ($current launcher(s) already fixed)"
     fi
 }
 
@@ -2873,7 +2924,7 @@ install_pkg "fonts-noto" "Noto fonts (broad Unicode coverage)"
 # ─────────────────────────────────────────────
 print_header "App Finder Launcher Fix"
 echo -e "  ${CYAN}Removing file argument placeholders so all apps launch cleanly from App Finder.${NC}\n"
-fix_desktop_launchers
+fix_desktop_launchers /usr/share/applications "$ACTUAL_HOME/.local/share/applications"
 
 # Prints the package's xfce4-terminal launcher with its English name changed
 # from "Xfce Terminal" to "Terminal", as on a Mac. Built from the package's
