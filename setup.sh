@@ -374,16 +374,21 @@ fix_desktop_launchers() {
         name=${src##*/}
         dest="$local_dir/$name"
         want=$(sed -e "1a $LAUNCHER_FIX_MARKER" -e 's/ *%[FfUu]//g' "$src")
+        if [ -d "$dest" ]; then
+            kept=$((kept + 1))
+            continue
+        fi
         if [ -f "$dest" ]; then
             if [ "$(cat "$dest" 2>/dev/null)" = "$want" ]; then
                 current=$((current + 1))
                 continue
             fi
-            # Ours (marked), or the unmarked copy older versions wrote
-            # (the package's file with the placeholder removed): rewrite.
-            # Anything else is not ours.
+            # Ours (marked), or an unmarked copy older versions wrote: those
+            # were the package's file with the placeholder removed, so their
+            # Exec lines still match the package's, stripped, even after an
+            # update changed other lines. Anything else is not ours.
             if ! grep -qxF "$LAUNCHER_FIX_MARKER" "$dest" 2>/dev/null \
-                && [ "$(cat "$dest" 2>/dev/null)" != "$(sed 's/ *%[FfUu]//g' "$src")" ]; then
+                && [ "$(grep '^Exec=' "$dest" 2>/dev/null)" != "$(grep '^Exec=' "$src" | sed 's/ *%[FfUu]//g')" ]; then
                 kept=$((kept + 1))
                 continue
             fi
@@ -426,7 +431,11 @@ fix_desktop_launchers() {
         FAILED+=("App launcher fix")
     fi
     if [ $((fixed + removed + failed)) -eq 0 ]; then
-        print_skip "App launcher fix ($current launcher(s) already fixed)"
+        if [ "$current" -gt 0 ]; then
+            print_skip "App launcher fix ($current launcher(s) already fixed)"
+        elif [ "$kept" -eq 0 ]; then
+            print_skip "App launcher fix (no launcher needs it)"
+        fi
     fi
 }
 
