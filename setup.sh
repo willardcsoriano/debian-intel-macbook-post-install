@@ -108,7 +108,10 @@ check_active() {
 # 2 = failed, so a caller reloads or flags a reboot only on a real change.
 ensure_file() {
     local path=$1 content=$2 label=$3
-    if [ -f "$path" ] && [ "$(cat "$path")" = "$content" ]; then
+    # Read through sudo: these are system files, and some live where only root
+    # can read them (/etc/polkit-1/rules.d), which would otherwise look like a
+    # missing file and be rewritten on every run.
+    if sudo test -f "$path" && [ "$(sudo cat "$path" 2>/dev/null)" = "$content" ]; then
         print_skip "$label"
         return 1
     fi
@@ -1031,9 +1034,7 @@ fi
 # so refuse outright instead. This only removes a path: active sessions and
 # sudo/root are unaffected, and NetworkManager itself still reconnects on
 # its own while locked.
-print_info "Refusing NetworkManager changes from locked/background sessions..."
-sudo mkdir -p /etc/polkit-1/rules.d
-sudo tee /etc/polkit-1/rules.d/50-networkmanager-inactive-session.rules > /dev/null << 'EOF'
+NM_INACTIVE_RULE=$(cat << 'EOF'
 polkit.addRule(function(action, subject) {
     if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 &&
         subject.local && !subject.active) {
@@ -1041,7 +1042,8 @@ polkit.addRule(function(action, subject) {
     }
 });
 EOF
-print_ok "NetworkManager changes refused while the session is locked or in the background"
+)
+ensure_file /etc/polkit-1/rules.d/50-networkmanager-inactive-session.rules "$NM_INACTIVE_RULE" "NetworkManager changes refused while the session is locked or in the background" || true
 
 # Wifi recovery tools (docs/wifi-recovery.md). fix-wifi forces a fresh
 # reconnect, power-cycles the radio (--radio) or Bluetooth (--bluetooth),
@@ -2634,27 +2636,27 @@ fi
 # lose work. logind-initiated lid actions bypass polkit, so the hibernate-blocking
 # rule below does not interfere. Applies on next reboot (no logind restart, which
 # would kill the session).
-print_info "Configuring logind: lid close → suspend-then-hibernate..."
-sudo mkdir -p /etc/systemd/logind.conf.d
-sudo tee /etc/systemd/logind.conf.d/10-lid.conf > /dev/null << 'EOF'
+LOGIND_LID_CONF=$(cat << 'EOF'
 [Login]
 HandleLidSwitch=suspend-then-hibernate
 HandleLidSwitchExternalPower=suspend-then-hibernate
 HandleLidSwitchDocked=ignore
 EOF
-print_ok "logind configured — lid → suspend-then-hibernate (effective after reboot)"
+)
+if ensure_file /etc/systemd/logind.conf.d/10-lid.conf "$LOGIND_LID_CONF" "logind: lid close → suspend-then-hibernate (applies after a reboot)"; then
+    REBOOT_REQUIRED=true
+fi
 
 # polkit (authority / safety layer)
-print_info "Restricting user-space hibernate requests (XFCE)..."
-sudo mkdir -p /etc/polkit-1/rules.d
-sudo tee /etc/polkit-1/rules.d/50-disable-hibernate.rules > /dev/null << 'EOF'
+HIBERNATE_RULE=$(cat << 'EOF'
 polkit.addRule(function(action, subject) {
     if (action.id == "org.freedesktop.login1.hibernate") {
         return polkit.Result.NO;
     }
 });
 EOF
-print_ok "Hibernate restricted to system-level control only"
+)
+ensure_file /etc/polkit-1/rules.d/50-disable-hibernate.rules "$HIBERNATE_RULE" "Hibernate restricted to system-level control only" || true
 
 # keyboard backlight (SMC-controlled peripheral layer)
 # The keyboard backlight is driven by applesmc on a separate power rail from
@@ -2847,9 +2849,6 @@ greeter-setup-script=$GREETER_SCRIPT"
     fi
 fi
 
-# sleep.conf is re-read by systemd-logind on demand, so no restart needed.
-# (Restarting systemd-logind can terminate the active user session.)
-print_ok "Power management changes will take effect after reboot"
 
 # ─────────────────────────────────────────────
 # SYSTEM MONITORING
