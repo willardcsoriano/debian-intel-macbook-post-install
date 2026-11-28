@@ -86,8 +86,8 @@ print_header() {
 }
 
 print_ok()      { echo -e "${GREEN}  ✔ $1${NC}"; }
-print_skip()    { echo -e "${YELLOW}  ⊘ $1 — already installed, skipping${NC}"; }
-print_fail()    { echo -e "${RED}  ✘ $1 — failed to install${NC}"; }
+print_skip()    { echo -e "${YELLOW}  ⊘ $1 — already done${NC}"; }
+print_fail()    { echo -e "${RED}  ✘ $1 — failed${NC}"; }
 print_info()    { echo -e "${CYAN}  → $1${NC}"; }
 print_warning() { echo -e "${YELLOW}  ⚠ $1${NC}"; }
 
@@ -3337,10 +3337,13 @@ for item in "${INSTALLED[@]}"; do
     echo -e "  ${GREEN}✔ $item${NC}"
 done
 
+# Packages that were already there are counted, not listed: on a re-run that
+# is nearly all of them, and the list would bury the lines that matter. The
+# full list goes to the log.
 if [ ${#SKIPPED[@]} -gt 0 ]; then
-    echo -e "\n${YELLOW}${BOLD}  Already installed, skipped (${#SKIPPED[@]})${NC}"
+    echo -e "\n${YELLOW}${BOLD}  Already installed (${#SKIPPED[@]}) — listed in the log${NC}"
     for item in "${SKIPPED[@]}"; do
-        echo -e "  ${YELLOW}⊘ $item${NC}"
+        log "already installed: $item"
     done
 fi
 

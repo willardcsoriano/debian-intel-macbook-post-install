@@ -255,7 +255,8 @@ folder can't be written, the log goes to
 ### The summary at the end
 
 When it finishes, the script prints an **Installation Summary**: what it
-installed, what was already there and skipped, and — only if something went
+installed, how many packages were already there (the full list is in the
+log), and — only if something went
 wrong — what failed, with a pointer to the log. A **System status** line
 then says whether Debian is fully up to date, was upgraded, or has updates
 you chose not to apply. Last comes a reminder that `sudo timeshift --restore`

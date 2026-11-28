@@ -450,6 +450,22 @@ class RebootOnlyWhenNeeded(unittest.TestCase):
                     self.assertTrue(any("REBOOT_REQUIRED=true" in l for l in lines[max(0, i - 3):i + 3]))
 
 
+class OutputWording(unittest.TestCase):
+    def test_skip_and_fail_wording_fits_every_step(self):
+        # Most skips are not packages ("wpa_supplicant was not active"), and
+        # most failures are not installs.
+        text = setup_extract.setup_text()
+        helpers = "".join(re.search(rf"(?m)^{name}\(\) +\{{.*\}}$", text).group(0) + "\n"
+                          for name in ("print_skip", "print_fail"))
+        r = subprocess.run(["bash", "-c", helpers + 'print_skip "Thing"; print_fail "Other"'],
+                           capture_output=True, text=True, timeout=30)
+        out = r.stdout
+        self.assertIn("⊘ Thing — already done", out)
+        self.assertIn("✘ Other — failed", out)
+        self.assertNotIn("already installed", out)
+        self.assertNotIn("failed to install", out)
+
+
 class AutomaticUpdatesSwitchedOn(unittest.TestCase):
     """The file that switches on apt's periodic timers is written by setup.sh
     itself and checked by content, so a missing one is rewritten."""
