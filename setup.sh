@@ -125,6 +125,66 @@ ensure_file() {
     return 2
 }
 
+# Run SCRIPT ("pre" before sleep, "post" after wake) on every sleep. systemd's
+# sleep helper runs hook scripts only from /usr/lib/systemd/system-sleep
+# (systemd-suspend.service(8)), which belongs to packages; it never reads
+# /etc/systemd/system-sleep, so hooks older versions put there never ran.
+# Each action is a script plus its own unit tied to sleep.target: ExecStart
+# runs as sleep begins, ExecStop when sleep.target stops after wake
+# (StopWhenUnneeded). That is the supported place for a local change, and it
+# covers suspend, hibernate and suspend-then-hibernate alike.
+SLEEP_ACTION_DIR=/usr/local/sbin
+SLEEP_UNIT_DIR=/etc/systemd/system
+LEGACY_SLEEP_HOOK_DIR=/etc/systemd/system-sleep
+install_sleep_action() {
+    local name=$1 script=$2 label=$3
+    local bin="$SLEEP_ACTION_DIR/$name" unit="$SLEEP_UNIT_DIR/$name.service"
+    local legacy="$LEGACY_SLEEP_HOOK_DIR/$name" unit_content rc
+    unit_content="[Unit]
+Description=$label (debian-intel-macbook-post-install)
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=$bin pre
+ExecStop=$bin post
+
+[Install]
+WantedBy=sleep.target"
+    ensure_file "$bin" "$script" "$label (script)"
+    [ $? -eq 2 ] && return 2
+    if ! sudo test -x "$bin" && ! sudo chmod 755 "$bin"; then
+        print_fail "$label (script not executable)"
+        FAILED+=("$label")
+        return 2
+    fi
+    ensure_file "$unit" "$unit_content" "$label"
+    rc=$?
+    [ $rc -eq 2 ] && return 2
+    [ $rc -eq 0 ] && sudo systemctl daemon-reload >>"$LOG_FILE" 2>&1
+    if ! systemctl is-enabled --quiet "$name.service" 2>/dev/null; then
+        # Enable only: starting it now would run the "pre" half while awake.
+        if ! sudo systemctl enable "$name.service" >>"$LOG_FILE" 2>&1; then
+            print_fail "$label (enabling $name.service)"
+            FAILED+=("$label")
+            return 2
+        fi
+        print_ok "$label: runs on every sleep from now on"
+    fi
+    # The copy older versions left where systemd never looks: remove it only
+    # while it is still exactly what setup.sh wrote.
+    if sudo test -e "$legacy"; then
+        if [ "$(sudo cat "$legacy" 2>/dev/null)" = "$script" ]; then
+            sudo rm -f "$legacy" && print_ok "Removed the unused old hook $legacy"
+        else
+            print_info "Left $legacy as it is: changed since setup.sh wrote it (systemd never runs it)"
+        fi
+    fi
+    return 0
+}
+
 # The VS Code apt source is usable: it names the VS Code repo and its
 # signed-by keyring is a valid key. Checked by meaning, not exact text,
 # because VS Code's own package rewrites this file with its own keyring.
@@ -2476,16 +2536,14 @@ echo -e "  ${CYAN}Keeping the bcm5974 trackpad alive across lid-close and resume
 # reconnects, xfsettingsd replays stored xinput properties — and if it has a stale
 # Device_Enabled=0, it disables the trackpad before anything can re-enable it,
 # leaving a dead pad until reboot. Fix is two parts: clear the stored disabled
-# state, and add a sleep hook that force-enables the device after it settles.
+# state, and add a sleep action that force-enables the device after it settles.
 
 # 1. Stop XFCE from storing/replaying Device_Enabled=0
 xfconf_set -c pointers -p /bcm5974/Properties/Device_Enabled -s 1 --create -t int
 print_ok "Cleared any stale XFCE trackpad-disabled state"
 
-# 2. systemd sleep hook — re-enable the trackpad after resume
-print_info "Installing resume hook /etc/systemd/system-sleep/touchpad-resume..."
-sudo mkdir -p /etc/systemd/system-sleep
-sudo tee /etc/systemd/system-sleep/touchpad-resume > /dev/null << 'EOF'
+# 2. Sleep action (install_sleep_action) — re-enable the trackpad after resume
+TOUCHPAD_RESUME_HOOK=$(cat << 'EOF'
 #!/bin/sh
 # Re-enable bcm5974 touchpad after resume.
 # xfsettingsd replays stored xinput properties on device reconnect; if it has
@@ -2498,8 +2556,8 @@ XUSER=$(who | awk '/:0/{print $1; exit}')
 XAUTH="/home/$XUSER/.Xauthority"
 su "$XUSER" -c "DISPLAY=:0 XAUTHORITY=$XAUTH xinput enable bcm5974" 2>/dev/null || true
 EOF
-sudo chmod +x /etc/systemd/system-sleep/touchpad-resume
-print_ok "Trackpad will re-enable automatically after lid-open/resume"
+)
+install_sleep_action touchpad-resume "$TOUCHPAD_RESUME_HOOK" "Trackpad re-enables itself after lid-open/resume" || true
 
 # Trackpad feel, as on a Mac: natural scrolling, two-finger click for a right
 # click, no stray clicks while typing -- plus tap-to-click. These are defaults:
@@ -2716,10 +2774,8 @@ ensure_file /etc/polkit-1/rules.d/50-disable-hibernate.rules "$HIBERNATE_RULE" "
 # a real S3 sleep would have, and this LED is one of the things that stays lit
 # as a result: nothing tells it to turn off. Install a sleep hook that forces
 # it to 0 before suspend and restores whatever level was set beforehand, on
-# resume.
-print_info "Installing keyboard backlight suspend hook..."
-sudo mkdir -p /etc/systemd/system-sleep
-sudo tee /etc/systemd/system-sleep/kbd-backlight-suspend > /dev/null << 'EOF'
+# resume (install_sleep_action runs it on every sleep).
+KBD_SUSPEND_HOOK=$(cat << 'EOF'
 #!/bin/sh
 # Force the SMC keyboard backlight off before suspend and restore it after.
 # s2idle (see setup.sh) does not power this LED down on its own, so without
@@ -2738,8 +2794,8 @@ case "$1" in
         ;;
 esac
 EOF
-sudo chmod +x /etc/systemd/system-sleep/kbd-backlight-suspend
-print_ok "Keyboard backlight will turn off during suspend and restore on resume"
+)
+install_sleep_action kbd-backlight-suspend "$KBD_SUSPEND_HOOK" "Keyboard backlight turns off during suspend and comes back on resume" || true
 
 # The keyboard backlight also stays lit while the display is off, since nothing
 # ties the two together. On a Mac it goes dark with the display. A small

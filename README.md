@@ -746,8 +746,9 @@ The bcm5974 trackpad re-enumerates as a USB device every time the lid opens
 after suspend. When it reconnects, XFCE's settings daemon (xfsettingsd) replays
 its stored input properties — and if it has a stale `Device_Enabled=0`, it
 disables the trackpad before anything can turn it back on, leaving a dead pad
-until reboot. This script clears that stored state and installs a systemd sleep
-hook that force-enables the trackpad after each resume.
+until reboot. This script clears that stored state and installs a small
+systemd service, `touchpad-resume.service`, that force-enables the trackpad
+after each resume.
 
 It also sets the trackpad to feel like a Mac's: natural scrolling, two-finger
 click for a right click, and no stray clicks while typing, plus tap-to-click
@@ -788,8 +789,8 @@ means it survives kernel updates without any manual intervention.
   (`UsePercentageForPolicy=false` in `/etc/UPower/UPower.conf`). The battery
   can report a full capacity far above its design, and then the percentage
   reads near zero on a healthy battery, while the time remaining stays right.
-- Keyboard backlight follows the display, as on a Mac. A sleep hook turns it
-  off during suspend, and a small watcher started at login
+- Keyboard backlight follows the display, as on a Mac. A small systemd
+  service, `kbd-backlight-suspend.service`, turns it off during sleep, and a small watcher started at login
   (`/usr/local/bin/kbd-backlight-follow-display`) turns it off while the
   display is powered off, then restores your level when it wakes. If you
   change the level while the display was off, yours wins. The watcher reads
